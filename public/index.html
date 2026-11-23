@@ -9,13 +9,13 @@
 </head>
 <body>
 <div id="app"></div>
+<div id="save-status" class="save-status" role="status" aria-live="polite" hidden></div>
 <div id="tm" role="timer" aria-live="off">
   <svg width="54" height="54" viewBox="0 0 54 54" aria-hidden="true"><circle cx="27" cy="27" r="23" fill="none" stroke="currentColor" stroke-opacity=".3" stroke-width="5"/><circle id="ring" cx="27" cy="27" r="23" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-dasharray="144.5" stroke-dashoffset="0" transform="rotate(-90 27 27)"/></svg>
   <div style="flex:1"><div id="tl" style="font-size:13px"></div><b id="tt">0:00</b></div>
   <button data-a="add">+15s</button><button data-a="skip">Skip</button>
 </div>
 <nav></nav>
-<script src="/api-config.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

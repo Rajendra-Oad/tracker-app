@@ -9,9 +9,16 @@ const uOf=t=>{if(demo===5){const k=t<.5?t*2:(t-.5)*2,e=.5*k+.5*sm(k);return t<.5
   return t<.42?sm(t/.42):t<.52?1:t<.92?1-sm((t-.52)/.4):0};
 const phOf=t=>demo===4||demo===8?"Hold still and breathe":demo===5?(t<.5?INC[5]:DEC[5]):t<.42?INC[demo]:t<.52?"Pause":t<.92?DEC[demo]:"Reset";
 const sdm=()=>{demo=wx<0?5+wu:wx};
-const K0="bw-tracker-v1",REST=90,SETS=3,API=window.API_BASE||"";let AU=null;try{AU=JSON.parse(localStorage.getItem("bw-auth")||"null")}catch(e){}
-const K=AU?K0+":"+AU.user.id:K0;
-if(AU&&!localStorage.getItem(K)&&localStorage.getItem(K0)){localStorage.setItem(K,localStorage.getItem(K0));localStorage.removeItem(K0)}
+const K0="bw-tracker-v1",K=K0,REST=90,SETS=3;
+let storageNotice="",legacyAuth=null,migrationFailed=false;
+try{legacyAuth=JSON.parse(localStorage.getItem("bw-auth")||"null")}catch(e){storageNotice="Could not read the previous sign-in data. Your saved workouts are untouched."}
+const savedAt=value=>{try{return Number(JSON.parse(value)._u)||0}catch(e){return 0}};
+try{
+  const legacyKey=legacyAuth&&legacyAuth.user&&legacyAuth.user.id?K0+":"+legacyAuth.user.id:null;
+  const localData=localStorage.getItem(K),accountData=legacyKey&&localStorage.getItem(legacyKey);
+  if(accountData){if(!localData||savedAt(accountData)>savedAt(localData))localStorage.setItem(K,accountData);localStorage.removeItem(legacyKey)}
+}catch(e){migrationFailed=true;storageNotice="Could not migrate saved data from this browser. Check your browser storage settings."}
+if(!migrationFailed)try{localStorage.removeItem("bw-auth")}catch(e){storageNotice="Could not remove the old sign-in token from this browser."}
 const EX=[
 ["Push-ups",{A:[["Hands on table edge",8],["Hands on table edge",12],["Hands on chair seat",8],["Hands on chair seat",12]],B:[["Floor","8–10"],["Floor",12],["Feet on a chair",8],["Feet on a chair","10–12"]]}],
 ["Table rows",{A:[["Knees bent",6],["Knees bent",10],["Legs straight",6],["Legs straight","8–10"]],B:[["Legs straight",8],["Legs straight","10–12"],["Feet on a stool or bed",8],["Feet raised",10]]}],
@@ -20,10 +27,20 @@ const EX=[
 ["Plank",{A:[["Hold",20],["Hold",30],["Hold",35],["Hold",45]],B:[["Hold",30],["Hold",40],["Hold",45],["Hold",60]]}]
 ];
 const WARM=["Arm circles: 10 forward, 10 back","Wall push-ups: 10","Bodyweight squats: 10","Plank: 20 seconds"];
-const FOOD=["Breakfast: mess meal + 3 eggs + milk","Lunch: full meal + extra dal or curd","Evening: 2 bananas + peanuts","Dinner: full meal + eggs or paneer","Before bed: glass of milk"];
 let S={hist:[],sk:null,track:"A",week:1,done:0,sets:{},log:[],bw:[],pt:[],food:{d:"",c:[]},warm:[],vw:1,start:null,msg:"",sd:{}},tab="today",demo=0,dOpen=false,calM=0,ang=-.9,wkOpen=false,wx=0,rirK=null;
-try{Object.assign(S,JSON.parse(localStorage.getItem(K)||"{}"))}catch(e){}
-let st=null;const sv=()=>{S._u=Date.now();try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}if(AU){clearTimeout(st);st=setTimeout(()=>{st=null;push()},900)}};
+try{Object.assign(S,JSON.parse(localStorage.getItem(K)||"{}"))}catch(e){storageNotice="Saved data could not be read. Your previous data has not been changed."}
+let saveTimer=null;
+const saveStatus=(message,isError=false)=>{
+  const el=document.querySelector("#save-status");if(!el)return;
+  el.textContent=message;el.classList.toggle("error",isError);el.hidden=!message;
+  clearTimeout(saveTimer);
+  if(message&&!isError)saveTimer=setTimeout(()=>{el.hidden=true},2200);
+};
+const sv=(quiet=false)=>{
+  S._u=Date.now();
+  try{localStorage.setItem(K,JSON.stringify(S));if(!quiet)saveStatus("Saved on this device");return true}
+  catch(e){console.error("Could not save tracker data to this browser.",e);saveStatus("Could not save. Check this browser’s storage settings.",true);return false}
+};
 const $=s=>document.querySelector(s);
 const stg=w=>Math.floor((w-1)/2);
 const get=(i,w=S.week)=>EX[i][1][S.track][stg(w)];
@@ -47,7 +64,7 @@ function render(){
   document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.t===tab));
   if(!S.start)wkOpen=false;
   const so=$("#wo"),y0=so?so.scrollTop:0;
-  $("#app").innerHTML=`<div class="${fx?"fx":""}">`+(tab==="today"?vTrain():tab==="plan"?vPlan():tab==="admin"?vAdmin():vProg())+`</div>`+(wkOpen?vWork():"")+(rirK?vSheet():"");fx=0;document.body.classList.toggle("wo",!!wkOpen);
+  $("#app").innerHTML=`<div class="${fx?"fx":""}">`+(tab==="today"?vTrain():tab==="plan"?vPlan():vProg())+`</div>`+(wkOpen?vWork():"")+(rirK?vSheet():"");fx=0;document.body.classList.toggle("wo",!!wkOpen);
   const nw=$("#wo");if(nw)nw.scrollTop=y0;
   startDemo();
 }
@@ -64,7 +81,7 @@ function vTrain(){
   for(let n=0;n<3;n++){
     const c=n<S.done,x=dn[n]||{},cur=n===S.done;
     h+=`<div class="card sess${c?" fin":""}${cur?" cur":""}"><div class="row"><h2>Session ${n+1} · Full body</h2>${c&&x.d?`<span class="mu" style="margin-right:24px">${new Date(x.d).toLocaleDateString(undefined,{day:"numeric",month:"short"})}</span>`:""}${cur&&S.start?`<span class="chip">In progress</span>`:""}</div><div class="row" style="margin-top:10px"><svg class="bm" viewBox="0 0 110 100" width="140" aria-hidden="true">${fig(0)}<g transform="translate(58 0)">${fig(1)}</g></svg><div class="stats" style="flex:1"><p><span>Time</span><b>${c&&x.dur?Math.max(1,Math.round(x.dur/60000))+" min":"–"}</b></p><p><span>Sets</span><b>15</b></p><p><span>Reps</span><b>${c&&x.reps?x.reps:"–"}</b></p></div></div>${cur?`<button class="p" data-o="1" style="width:100%;margin-top:14px">${ic("play")}${S.start?"Continue session":"Start session"}</button>`:""}</div>`}
-  return h+vFood()}
+  return h}
 function vWork(){
   const i=wx,wm=i<0,dn=Object.keys(S.sets).length,tot=EX.length*SETS,all=dn>=tot,wd=S.warm.length;
   let h=`<div id="wo"><div class="wohead"><button class="ico" data-b="1" aria-label="Back">${ic("chevron-left",26)}</button><b id="se">${el()}</b><button data-a="${all?"fin":"endEarly"}">Finish</button></div><div class="pline"><i style="width:${Math.round(dn/tot*100)}%"></i></div><div class="wob">`;
@@ -83,11 +100,9 @@ function vWork(){
   }
   return h+`</div></div>`}
 function vSheet(){const cur=(S.sd[rirK]||{}).rir||"2";return `<button class="sbg" data-a="ok" aria-label="Close"></button><div class="sheet"><h2>Reps in reserve</h2><p class="mu" style="margin-top:4px">How many more clean reps could you have done? Pick the closest number.</p><div class="rv">${["4+","3.5","3","2.5","2","1.5","1","0.5","0"].map(q=>`<button data-rv="${q}" class="${q===cur?"on":""}">${q}</button>`).join("")}</div><button class="p" data-a="ok" style="width:100%;margin-top:14px">OK</button></div>`}
-const FOODS={veg:["Breakfast: mess meal + milk + soaked almonds","Lunch: full meal + extra dal or curd","Evening: 2 bananas + peanuts","Dinner: full meal + paneer or soya chunks","Before bed: glass of milk"],egg:FOOD,non:["Breakfast: mess meal + 3 eggs + milk","Lunch: full meal + chicken or fish if you can","Evening: 2 bananas + peanuts","Dinner: full meal + chicken, fish or eggs","Before bed: glass of milk"]};
-function vFood(){const p=S.profile,n=p&&nutri(p),L=FOODS[p?p.diet:"egg"]||FOOD;return `<div class="card"><h2>Today’s food</h2><div class="mu" style="margin-bottom:4px">Aim for ${n?n.pl+"–"+n.ph+" g protein and about "+n.kcal.toLocaleString()+" calories.":"85–105 g protein and about 2,600–2,800 calories."}</div>${L.map((f,i)=>`<label class="ck"><input type="checkbox" data-f="${i}" ${S.food.c.includes(i)?"checked":""}>${f}</label>`).join("")}</div>`}
 const ring=(v,t)=>{const r=26,c=2*Math.PI*r;return `<svg width="68" height="68" viewBox="0 0 64 64" aria-label="${v} of ${t} sessions"><circle cx="32" cy="32" r="${r}" fill="none" stroke="var(--line)" stroke-width="7"/><circle cx="32" cy="32" r="${r}" fill="none" stroke="var(--acc)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c*(1-Math.min(1,v/t))}" transform="rotate(-90 32 32)" style="transition:stroke-dashoffset .6s"/><text x="32" y="37" text-anchor="middle" fill="currentColor" font-size="16" font-weight="800">${v}/${t}</text></svg>`};
-function vHero(){const p=S.profile,nm=esc(AU.user.name.split(" ")[0]);return `<div class="row hero" style="margin:2px 0 14px"><div><div class="mu">${p?LVN[S.track]+" plan · Free":"Welcome back"}</div><h1>Hi ${nm}, week ${S.week}</h1></div>${ring(S.done,3)}</div>${S.done>=3?`<button class="p" data-a="next" style="width:100%;margin-bottom:12px">${S.week<8?"Finish week "+S.week:"Complete the 8 weeks"}</button>`:""}`}
-function vProf(){const p=S.profile;if(!p)return `<div class="card"><h2>Set up your plan</h2><p class="mu" style="margin:4px 0 10px">Answer a few questions so the plan and food targets fit your body.</p><button class="p" data-a="redo" style="width:100%">Start</button></div>`;const n=nutri(p);return `<div class="card"><div class="row"><h2>Your profile</h2><button data-a="redo" style="min-height:36px">Edit</button></div><div class="kpi"><div class="st"><span class="mu">BMI</span><b>${n.bmi}</b></div><div class="st"><span class="mu">Calories</span><b>${n.kcal}</b></div><div class="st"><span class="mu">Protein</span><b>${n.pl}g+</b></div></div><div class="mu">${p.weight} kg now, goal ${p.goalW} kg · ${p.height} cm · age ${p.age}</div></div>`}
+function vHero(){return `<div class="row hero" style="margin:2px 0 14px"><div><div class="mu">${S.profile?LVN[S.track]+" plan":"Your training plan"}</div><h1>Week ${S.week}</h1></div>${ring(S.done,3)}</div>${S.done>=3?`<button class="p" data-a="next" style="width:100%;margin-bottom:12px">${S.week<8?"Finish week "+S.week:"Complete the 8 weeks"}</button>`:""}`}
+function vProf(){const p=S.profile;if(!p)return `<div class="card"><h2>Your training profile</h2><button class="p" data-a="redo" style="width:100%;margin-top:10px">Set up</button></div>`;const goal=GOALS.find(([value])=>value===p.goal);return `<div class="card"><div class="row"><h2>Your training profile</h2><button data-a="redo" style="min-height:36px">Edit</button></div><div class="kpi"><div class="st"><span class="mu">Age</span><b>${p.age}</b></div><div class="st"><span class="mu">Weight</span><b>${p.weight} kg</b></div><div class="st"><span class="mu">Goal</span><b>${esc(p.goalW)} kg</b></div></div><div class="mu">${esc(goal?goal[1]:p.goal)} · ${LVN[S.track]} exercise plan${p.email?` · ${esc(p.email)}`:""}${p.phone?` · ${esc(p.phone)}`:""}</div></div>`}
 function vPlan(){
   const w=S.vw;
   let h=`<h1 style="margin:6px 0 10px">Plan</h1>${vProf()}${vCoach()}<div class="card"><div class="mu">Level</div><div class="chips scr">${LV.map(k=>`<button data-k="${k}" class="${S.track===k?"on":""}">${LVN[k]}${coach().rec===LV.indexOf(k)&&S.hist.length>=3&&k!==S.track?" ★":""}</button>`).join("")}</div><div class="mu" style="margin-bottom:6px">${LVD[S.track]}</div>`;
@@ -95,7 +110,7 @@ function vPlan(){
   h+=`<table>${EX.map((e,i)=>{const [v,r]=get(i,w);return `<tr><td><b>${e[0]}</b><br><span class="mu">${v}</span></td><td style="white-space:nowrap">${SETS} × ${r}${isHold(i)?"s":""}</td></tr>`}).join("")}</table>`;
   h+=`<p class="mu">3 sessions a week (for example Mon, Wed, Fri), 90 seconds rest between sets.</p><button class="p" data-a="setwk" style="width:100%" ${w===S.week?"disabled":""}>${w===S.week?"This is your current week":"Make week "+w+" my current week"}</button></div>`;
   h+=vDemo();h+=`<div class="card"><h2>Move up rule</h2><p class="mu" style="margin:6px 0 0">When you hit the top rep number on all 3 sets, the next week’s harder version is ready. Keep your form clean. If a week feels too hard, repeat it.</p></div>`;
-  h+=`<div class="card row"><div style="min-width:0"><b>${esc(AU.user.name)}</b><div class="mu" style="overflow:hidden;text-overflow:ellipsis">${esc(AU.user.email)}</div></div><button data-a="logout">Log out</button></div><button data-a="reset" style="width:100%">Reset all data</button>`;
+  h+=`<div class="card"><h2>Saved on this device</h2><p class="mu" style="margin:4px 0 10px">Your workouts and profile stay in this browser. They are not synced to an account or another device.</p><div class="row"><button class="p" data-a="save">Save now</button><button data-a="reset">Reset all data</button></div></div>`;
   return h;
 }
 function vProg(){
@@ -128,9 +143,7 @@ document.addEventListener("click",e=>{
   else if(a==="start"){S.start=Date.now();S.msg="";sv();render()}
   else if(a==="endEarly"){const n=Object.keys(S.sets).length,stale=S.start&&Date.now()-S.start>432e5;if(!stale&&!confirm("End this session now? The sets you finished will be saved."))return;const dur=S.start?(stale?Math.max(0,(S.last||S.start)-S.start):Date.now()-S.start):0;if(n>0){const h=snap();S.hist.push(h);learn(h)}if(n>0)S.log.push({d:stale&&S.last?S.last:Date.now(),w:S.week,dur,part:n,reps:reps()});S.msg="Session saved ("+n+" of 15 sets"+(dur?", "+Math.max(1,Math.round(dur/60000))+" min":"")+"). It doesn’t count toward your 3 weekly sessions.";S.sets={};S.sd={};S.warm=[];S.start=null;sv();stopT();render();scrollTo(0,0)}
   else if(a==="ok"){rirK=null;render()}
-  else if(a==="logout")logout();
-  else if(a==="adm"){ADM=undefined;ADU=null;render()}
-  else if(a==="admback"){ADU=null;render()}
+  else if(a==="save"){if(sv())saveStatus("Saved now on this device")}
   else if(a==="apply"){const c=coach();S.track=LV[c.rec];S.sk=c.rec;sv();render()}
   else if(a==="csv"){const rows=[["date","week","level","sets_done","reps_vs_plan","avg_rir",...EX.map(e=>e[0].split(" (")[0])],...S.hist.map(x=>[new Date(x.d).toISOString().slice(0,10),x.w,LVN[x.lv]||x.lv,x.n,x.ra,x.rir==null?"":x.rir,...x.ex])],u=URL.createObjectURL(new Blob([rows.map(r=>r.join(",")).join("\n")],{type:"text/csv"})),l=document.createElement("a");l.href=u;l.download="training-data.csv";l.click();setTimeout(()=>URL.revokeObjectURL(u),500)}
   else if(a==="discard"){S.sets={};S.sd={};S.warm=[];S.start=null;S.msg="";sv();stopT();render()}
@@ -140,7 +153,7 @@ document.addEventListener("click",e=>{
   else if(a==="setwk"){S.week=S.vw;S.done=0;S.sets={};S.sd={};sv();render()}
   else if(a==="bw"){const v=parseFloat($("#bwi").value);if(v>0){S.bw.push({d:Date.now(),v:Math.round(v*10)/10});sv();render();flash("bw")}}
   else if(a==="pt"){const v=parseInt($("#pti").value,10);if(v>=0){S.pt.push({d:Date.now(),v});sv();render();flash("pt")}}
-  else if(a==="reset"&&confirm("Delete all your saved progress?")){localStorage.removeItem(K);api("PUT","/api/data",{state:{}}).catch(()=>{}).finally(()=>location.reload())}
+  else if(a==="reset"&&confirm("Delete all your saved profile and progress from this browser?")){try{localStorage.removeItem(K);location.reload()}catch(error){console.error("Could not clear tracker data from this browser.",error);saveStatus("Could not clear data. Check this browser’s storage settings.",true)}}
 });
 document.addEventListener("change",e=>{
   const t=e.target;
@@ -207,7 +220,7 @@ function snap(){let TT=0,AA=0,rs=0,rn=0;const er=[0,0,0,0,0],et=[0,0,0,0,0],n=Ob
 function learn(h){if(h.n!==15)return;const c=h.n/15,e=h.rir==null?2:h.rir;let g=(c-.8)*1.2+(Math.min(h.ra,1.3)-.95)*1.5+(e-2)*.25;g=Math.max(-1,Math.min(1,g));
   const k0=S.sk==null?LV.indexOf(S.track):S.sk;S.sk=Math.max(0,Math.min(3,k0+.2*g*(c<1?.6:1)))}
 function coach(){const H=S.hist.filter(x=>x.n===15),L=H.slice(-6),lv=LV.indexOf(S.track),sk=S.sk==null?lv:S.sk,m=f=>L.length?L.reduce((a,x)=>a+f(x),0)/L.length:0;
-  const full=S.log.filter(x=>!x.part).length,ds=[...H.map(x=>x.d),...S.log.map(x=>x.d)],t0=ds.length?Math.min(...ds):Date.now(),wks=Math.max(1,Math.ceil((Date.now()-t0)/6048e5)),exp=Math.min(24,3*wks);
+  const full=S.log.filter(x=>!x.part).length,ds=[...H.map(x=>x.d),...S.log.map(x=>x.d)],t0=ds.length?Math.min(...ds):Date.now(),wks=Math.max(1,Math.ceil((Date.now()-t0)/6048e5)),exp=S.log.length?Math.min(24,3*wks):0;
   const rec=H.length<3?lv:sk>=lv+.5&&lv<3?lv+1:sk<=lv-.5&&lv>0?lv-1:lv,q=H.slice(-4);
   return{lv,rec,full,exp,wks,n:H.length,comp:m(x=>x.n/15),ra:m(x=>x.ra),rir:m(x=>x.rir==null?2:x.rir),ex:EX.map((e,i)=>q.length?q.reduce((a,x)=>a+x.ex[i],0)/q.length:null),pts:H.slice(-12).map(x=>x.n/15*.5+Math.min(x.ra,1.2)/1.2*.5)}}
 function vCoach(){const c=coach(),G=24,st=c.full>=G?"Goal reached":c.full>=c.exp+1?"Ahead":c.full>=c.exp-1?"On track":"Behind",ok=st!=="Behind";
@@ -223,120 +236,77 @@ function vCoach(){const c=coach(),G=24,st=c.full>=G?"Goal reached":c.full>=c.exp
   ${c.n?`<div class="mus">${c.ex.map((v,i)=>`<div class="mr s"><span>${EX[i][0].split(" (")[0]}</span><i><b style="width:${Math.min(100,Math.round((v||0)*100))}%"></b></i><em>${Math.round((v||0)*100)}%</em></div>`).join("")}</div>`:""}
   ${tips.map(t=>`<p class="mu" style="margin:8px 0 0">${t}</p>`).join("")}<button data-a="csv" style="width:100%;margin-top:12px;min-height:40px">Export training data (CSV)</button></div>`}
 const flash=a=>{const b=document.querySelector(`[data-a="${a}"]`);if(!b)return;b.textContent="Saved ✓";b.classList.add("ok");setTimeout(()=>{const q=document.querySelector(`[data-a="${a}"]`);if(q){q.textContent="Save";q.classList.remove("ok")}},1500)};
-// ---- Accounts: login / signup, cloud sync, host dashboard ----
+// ---- Local-only profile setup ----
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-async function api(m,p,b){const r=await fetch(API+p,{method:m,keepalive:m==="PUT",headers:{"Content-Type":"application/json",...(AU?{Authorization:"Bearer "+AU.token}:{})},body:b?JSON.stringify(b):undefined});
-  const j=await r.json().catch(()=>({}));if(!r.ok){if(r.status===401&&AU&&p!=="/api/logout")logout();throw new Error(j.error||"Something went wrong. Try again.")}return j}
-const push=()=>AU?api("PUT","/api/data",{state:S}).catch(()=>{}):Promise.resolve();
-async function logout(){try{await api("POST","/api/logout")}catch(e){}localStorage.removeItem("bw-auth");localStorage.removeItem(K);location.reload()}
-const defD=()=>({phone:"",phoneCode:"+91",name:"",email:"",password:"",confirm:"",age:"",gender:"male",height:"",weight:"",goalW:"",goal:"gain",act:"light",push:4,exp:"new",diet:"egg",lim:["none"],plan:null});
-let AM="login",SU={step:1,d:defD()};
-const GOALS=[["gain","Build muscle, gain weight","Eat a little extra, train 3 times a week","trending-up"],["maintain","Stay lean and fit","Keep your weight, get stronger","activity"],["lose","Lose fat","Small deficit, keep your muscle","flame"]];
-const ACTS=[["sed","Mostly sitting","Study or desk work, little walking"],["light","Lightly active","Daily walking, 1–2 workouts a week"],["mod","Moderately active","On your feet, 3–4 workouts a week"],["act","Very active","Physical job or daily sport"]];
+const defD=()=>({phone:"",phoneCode:"+91",email:"",age:"",weight:"",goalW:"",goal:"gain",plan:0});
+let SU={step:1,d:defD()};
+const GOALS=[["gain","Build strength and gain weight",""],["maintain","Maintain weight and get stronger",""],["lose","Lose weight and keep moving",""]];
 const PHONE_CODES=[["India","+91"],["United States / Canada","+1"],["United Kingdom","+44"],["Australia","+61"],["New Zealand","+64"],["Ireland","+353"],["United Arab Emirates","+971"],["Saudi Arabia","+966"],["Pakistan","+92"],["Bangladesh","+880"],["Sri Lanka","+94"],["Nepal","+977"],["Singapore","+65"],["Malaysia","+60"],["Indonesia","+62"],["Philippines","+63"],["Japan","+81"],["China","+86"],["Hong Kong","+852"],["South Korea","+82"],["Germany","+49"],["France","+33"],["Italy","+39"],["Spain","+34"],["Netherlands","+31"],["Switzerland","+41"],["Sweden","+46"],["Norway","+47"],["Denmark","+45"],["Brazil","+55"],["Mexico","+52"],["South Africa","+27"],["Nigeria","+234"],["Kenya","+254"],["Egypt","+20"],["Turkey","+90"]];
-const CH={gender:[["male","Male"],["female","Female"],["other","Other"]],push:[[4,"Under 8"],[10,"8–11"],[16,"12–19"],[24,"20+"]],exp:[["new","New to training"],["some","On and off"],["reg","Train regularly"]],diet:[["veg","Vegetarian"],["egg","Eggetarian"],["non","Non-veg"]],lim:[["none","None"],["wrist","Wrist"],["shoulder","Shoulder"],["knee","Knee"],["back","Lower back"]]};
-const recLevel=d=>{let k=d.push<8?0:d.push<12?1:d.push<20?2:3;if(d.exp==="new"&&k>1)k=1;return k};
-const nutri=p=>{const w=+p.weight,h=+p.height,bmr=10*w+6.25*h-5*p.age+({male:5,female:-161}[p.gender]??-78),af={sed:1.2,light:1.375,mod:1.55,act:1.725}[p.act]||1.375,adj={gain:400,maintain:0,lose:-400}[p.goal]||0;return{kcal:Math.round((bmr*af+adj)/50)*50,pl:Math.round(w*1.6),ph:Math.round(w*2),bmi:+(w/(h/100)**2).toFixed(1)}};
-const profileDraft=p=>{const d=Object.assign(defD(),p||{}),phone=String(d.phone||""),match=PHONE_CODES.find(([,code])=>phone.startsWith(code));if(match){d.phoneCode=match[1];d.phone=phone.slice(match[1].length).replace(/\D/g,"")}return d};
-const prof=()=>{const d=SU.d;return{phone:`${d.phoneCode}${String(d.phone).replace(/\D/g,"")}`,age:+d.age,gender:d.gender,height:+d.height,weight:Math.round(+d.weight*10)/10,goalW:Math.round(+d.goalW*10)/10,goal:d.goal,act:d.act,push:d.push,exp:d.exp,diet:d.diet,lim:d.lim,plan:LV[d.plan]}};
-const pwChk=p=>[p.length>=8,/[a-z]/.test(p)&&/[A-Z]/.test(p),/\d/.test(p),/[^A-Za-z0-9]/.test(p)];
-const PWL=["8+ characters","Upper and lower case","A number","A symbol"],PWC=["","#ff7a6b","#f3a13c","#d6d65c","#5cc8d7"];
-function pwUI(p){const b=$("#pwb");if(!b)return;const c=pwChk(p),n=c.filter(Boolean).length;[...b.children].forEach((x,i)=>x.style.background=i<n?PWC[n]:"");[...$("#pwc").children].forEach((x,i)=>x.classList.toggle("ok",c[i]));$("#pwt").textContent=p?["Too weak","Weak","Okay","Good","Strong"][n]:""}
-const fld=(l,k,ico,t="text",a="",eye=0)=>`<label>${l}<div class="inp${ico?"":" no-icon"}">${ico?ic(ico):""}<input name="${k}" data-sd="${k}" type="${t}" value="${esc(SU.d[k]??"")}" aria-required="true" ${a}>${eye?`<button type="button" class="eye" data-eye aria-label="Show password">${ic("eye")}</button>`:""}</div></label>`;
-const chp=(k,multi)=>`<div class="chips">${CH[k].map(([v,l])=>{const on=multi?SU.d[k].includes(v):SU.d[k]===v;return `<button type="button" data-pk="${k}" data-pv="${v}" aria-pressed="${on}" class="${on?"on":""}">${l}</button>`}).join("")}</div>`;
-const opts=(k,L)=>L.map(([v,t,s,ico])=>`<button type="button" class="opt ${SU.d[k]===v?"on":""}" aria-pressed="${SU.d[k]===v}" data-pk="${k}" data-pv="${v}">${ico?ic(ico):""}<span><b>${t}</b><small>${s}</small></span></button>`).join("");
+const profileDraft=p=>{
+  const d=Object.assign(defD(),p||{}),phone=String(d.phone||""),match=PHONE_CODES.find(([,code])=>phone.startsWith(code));
+  if(match){d.phoneCode=match[1];d.phone=phone.slice(match[1].length).replace(/\D/g,"")}
+  d.plan=Number.isInteger(d.plan)?d.plan:Math.max(0,LV.indexOf(d.plan||"A"));
+  return d;
+};
+const prof=()=>{const d=SU.d;return{
+  phone:d.phone?`${d.phoneCode}${String(d.phone).replace(/\D/g,"")}`:"",
+  email:String(d.email||"").trim(),age:+d.age,weight:Math.round(+d.weight*10)/10,
+  goalW:Math.round(+d.goalW*10)/10,goal:d.goal,plan:LV[d.plan]
+}};
+const fld=(l,k,ico,t="text",a="",required=false)=>`<label>${l}<div class="inp${ico?"":" no-icon"}">${ico?ic(ico):""}<input name="${k}" data-sd="${k}" type="${t}" value="${esc(SU.d[k]??"")}" aria-required="${required}" ${required?"required":""} ${a}></div></label>`;
+const opts=(k,L)=>L.map(([v,t,s,ico])=>`<button type="button" class="opt ${SU.d[k]===v?"on":""}" aria-pressed="${SU.d[k]===v}" data-pk="${k}" data-pv="${v}">${ico?ic(ico):""}<span><b>${t}</b>${s?`<small>${s}</small>`:""}</span></button>`).join("");
 const PROFILE_STEPS=[
-  {title:"About you",note:"How old are you? Choose the gender setting for your estimates.",render:()=>`${fld("Age","age","calendar","number",'inputmode="numeric" min="10" max="90"')}<div class="auth-choice"><span>Gender</span>${chp("gender")}</div>`},
-  {title:"Body measurements",note:"These help set your starting targets.",render:()=>`<div class="g2">${fld("Height (cm)","height","ruler","number",'inputmode="decimal" min="100" max="230"')}${fld("Weight (kg)","weight","scale","number",'inputmode="decimal" step="0.1" min="25" max="250"')}</div>`},
-  {title:"Your goal weight",note:"What weight are you aiming for? You can change it later.",render:()=>fld("Goal weight (kg)","goalW","target","number",'inputmode="decimal" step="0.1" min="25" max="250"')},
-  {title:"Your focus",note:"Choose what you want your plan to help you work toward.",render:()=>opts("goal",GOALS)},
-  {title:"Your routine",note:"Pick the activity level and your current push-up range.",render:()=>`<div class="auth-choice"><span>Daily activity</span>${opts("act",ACTS)}</div><div class="auth-choice"><span>Push-ups in one go</span>${chp("push")}</div>`},
-  {title:"Training and food",note:"Choose the options that best describe you.",render:()=>`<div class="auth-choice"><span>Training experience</span>${chp("exp")}</div><div class="auth-choice"><span>Food preference</span>${chp("diet")}</div>`},
-  {title:"Any movement limits?",note:"Pick any areas that need extra care. You can also choose None.",render:()=>chp("lim",1)},
-  {title:"Choose your plan",note:"Your suggested level is based on your answers. You can change it later.",render:()=>{const rk=recLevel(SU.d);if(SU.d.plan===null)SU.d.plan=rk;const n=nutri(SU.d);return `<div class="kpi"><div class="st"><span class="mu">BMI</span><b>${n.bmi}</b></div><div class="st"><span class="mu">Calories</span><b>${n.kcal}</b></div><div class="st"><span class="mu">Protein</span><b>${n.pl}g+</b></div></div>${LV.map((k,i)=>`<button type="button" class="opt plan-opt ${SU.d.plan===i?"on":""}" aria-pressed="${SU.d.plan===i}" data-pk="plan" data-pv="${i}"><span class="plan-copy"><b>${LVN[k]}</b><small>${LVD[k]}</small></span><span class="plan-meta">${i===rk?`<span class="rec">${ic("check",13)}Best fit</span>`:""}<span class="free">Free</span></span></button>`).join("")}${SU.d.lim.some(x=>x!=="none")?`<p class="mu">You listed a limit. Skip any move that hurts, and see a doctor if pain continues.</p>`:""}`}}
+  {title:"Contact details",note:"Optional. Saved only in this browser; never used to sign in.",render:()=>`<div class="phone-input"><label>Country code<select name="phoneCode" data-sd="phoneCode" autocomplete="tel-country-code" aria-label="Country calling code">${PHONE_CODES.map(([name,code])=>`<option value="${code}" ${SU.d.phoneCode===code?"selected":""}>${name} (${code})</option>`).join("")}</select></label>${fld("Mobile number","phone","","tel",'autocomplete="tel-national" inputmode="numeric" maxlength="18"')}</div>${fld("Email","email","mail","email",'autocomplete="email" maxlength="254"')}`},
+  {title:"Your starting point",note:"A couple of basics help you track your progress.",render:()=>`<div class="g2">${fld("Age","age","calendar","number",'inputmode="numeric" min="10" max="90"',true)}${fld("Current weight (kg)","weight","scale","number",'inputmode="decimal" step="0.1" min="25" max="250"',true)}</div>`},
+  {title:"Your goal",note:"Set a target and choose what you want to focus on.",render:()=>`${fld("Goal weight (kg)","goalW","target","number",'inputmode="decimal" step="0.1" min="25" max="250"',true)}<div class="auth-choice"><span>Focus</span>${opts("goal",GOALS)}</div>`},
+  {title:"Choose your exercise level",note:"You can change your plan later.",render:()=>LV.map((k,i)=>`<button type="button" class="opt plan-opt ${SU.d.plan===i?"on":""}" aria-pressed="${SU.d.plan===i}" data-pk="plan" data-pv="${i}"><span class="plan-copy"><b>${LVN[k]}</b><small>${LVD[k]}</small></span></button>`).join("")}
 ];
-const ACCOUNT_STEPS=4;
-const SIGNUP_STEPS=[
-  {title:"Your mobile number",note:"Choose your country code. We’ll save this for contact only; use your email to sign in.",render:()=>`<div class="phone-input"><label>Country code<select name="phoneCode" data-sd="phoneCode" autocomplete="tel-country-code" aria-label="Country calling code">${PHONE_CODES.map(([name,code])=>`<option value="${code}" ${SU.d.phoneCode===code?"selected":""}>${name} (${code})</option>`).join("")}</select></label>${fld("Mobile number","phone","","tel",'autocomplete="tel-national" inputmode="numeric" maxlength="18"')}</div>`},
-  {title:"Your name",note:"What should we call you?",render:()=>fld("Name","name","user","text",'autocomplete="name" maxlength="60"')},
-  {title:"Your email",note:"This will be your sign-in email.",render:()=>fld("Email","email","mail","email",'autocomplete="email"')},
-  {title:"Set a password",note:"Use 8–128 characters and make it hard to guess.",render:()=>fld("Password","password","lock","password",'autocomplete="new-password" maxlength="128"',1)+`<div class="pwb" id="pwb"><i></i><i></i><i></i><i></i></div><div class="pwc" id="pwc">${PWL.map(x=>`<span>${x}</span>`).join("")}</div><p class="mu" id="pwt" style="margin:4px 0 12px"></p>`+fld("Confirm password","confirm","lock","password",'autocomplete="new-password" maxlength="128"',1)}
-];
-const stepsFor=()=>AM==="setup"?PROFILE_STEPS:SIGNUP_STEPS.concat(PROFILE_STEPS);
-function authView(m){
-  if(m){AM=m;if(m==="signup")SU={step:1,d:defD()}}
+function onboardingView(){
+  const step=SU.step,stage=PROFILE_STEPS[step-1],last=step===PROFILE_STEPS.length;
   document.body.classList.add("noauth");
-  const L=AM==="login",se=AM==="setup",flow=L?[]:stepsFor(),st=L?0:SU.step,stage=L?null:flow[st-1],d=SU.d;
-  const b=L?fld("Email","email","mail","email",'autocomplete="email"')+fld("Password","password","lock","password",'autocomplete="current-password"',1)+'<p class="auth-help"><a href="/forgot-password.html">Forgot password?</a></p>':stage.render();
-  const last=!L&&st===flow.length,back=!L&&st>1?`<button type="button" data-ob="back" style="flex:1">${ic("chevron-left")}Back</button>`:se&&S.profile?`<button type="button" data-ob="cancel" style="flex:1">Cancel</button>`:"";
-  const btn=L?`<button class="p" style="width:100%">Log in</button>`:`<div class="row auth-actions" style="gap:8px">${back}<button class="p" style="flex:2">${last?(se?"Start training":"Create account"):"Next"}</button></div>`;
-  const tabs=!se&&(L||st===1),total=flow.length;
-  $("#app").innerHTML=`<div class="au fx"><h1 class="wordmark">HTF</h1>${tabs?`<div class="chips auth-tabs"><button type="button" data-au="login" aria-pressed="${L}" class="${L?"on":""}">Log in</button><button type="button" data-au="signup" aria-pressed="${!L}" class="${L?"":"on"}">Sign up</button></div>`:""}${!L?`<div class="auth-progress" aria-label="Step ${st} of ${total}: ${stage.title}"><span>Step ${st} of ${total}</span><b>${stage.title}</b><div class="dots" aria-hidden="true">${flow.map((_,i)=>`<i class="${i<st?"on":""}"></i>`).join("")}</div></div>`:""}<form id="auf" class="card" autocomplete="on" novalidate>${L?`<h2 class="auth-form-title">Log in</h2>`:`<div class="auth-question"><h2>${stage.title}</h2><p class="mu">${stage.note}</p></div>`}${b}<p id="aue" class="err" role="alert"></p>${btn}${!se&&st===1?'<p class="mu auth-note">Your profile and training data are visible to the site host. Passwords are stored as salted hashes, not plain text. <a href="/legal.html" target="_blank" rel="noopener" aria-label="Learn more about privacy and terms; opens in a new tab">Learn more: Privacy &amp; terms</a></p>':""}</form></div>`;
-  if(AM==="signup"&&st===4)pwUI(d.password)}
-function stepErr(){const d=SU.d,st=SU.step,n=parseFloat;
-  if(AM==="signup"){
+  $("#app").innerHTML=`<div class="au fx"><h1 class="wordmark">HTF</h1><div class="auth-progress" aria-label="Step ${step} of ${PROFILE_STEPS.length}: ${stage.title}"><span>Step ${step} of ${PROFILE_STEPS.length}</span><b>${stage.title}</b><div class="dots" aria-hidden="true">${PROFILE_STEPS.map((_,i)=>`<i class="${i<step?"on":""}"></i>`).join("")}</div></div><form id="profile-form" class="card" autocomplete="on" novalidate><div class="auth-question"><h2>${stage.title}</h2><p class="mu">${stage.note}</p></div>${stage.render()}${step===1?'<p class="mu" style="margin-top:12px"><a href="/legal.html">Privacy &amp; Terms</a></p>':""}<p id="profile-error" class="err" role="alert"></p><div class="row auth-actions" style="gap:8px">${step>1?`<button type="button" data-ob="back" style="flex:1">${ic("chevron-left")}Back</button>`:S.profile?'<button type="button" data-ob="cancel" style="flex:1">Cancel</button>':""}<button class="p" style="flex:2">${last?"Start training":"Next"}</button></div></form></div>`;
+}
+function stepErr(){
+  const d=SU.d,n=parseFloat;
+  if(SU.step===1){
+    if(d.email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email.trim()))return"Enter a valid email address or leave it blank.";
     const digits=String(d.phone).replace(/\D/g,"");
-    if(st===1&&(!PHONE_CODES.some(([,code])=>code===d.phoneCode)||digits.length<6||digits.length>14))return"Enter a valid mobile number for the selected country code.";
-    if(st===2&&!d.name.trim())return"Enter your name.";
-    if(st===3&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email.trim()))return"Enter a valid email address.";
-    if(st===4){if(d.password.length>128)return"Use 128 characters or fewer.";const c=pwChk(d.password);if(!c[0])return"Use at least 8 characters.";if(c.filter(Boolean).length<3)return"Make the password stronger: add upper case, a number or a symbol.";if(d.password!==d.confirm)return"The two passwords do not match."}
+    if(digits&&(!PHONE_CODES.some(([,code])=>code===d.phoneCode)||digits.length<6||digits.length>14))return"Enter a valid mobile number or leave it blank.";
   }
-  const pStep=AM==="setup"?st:st-ACCOUNT_STEPS;
-  if(pStep===1&&!(n(d.age)>=10&&n(d.age)<=90))return"Enter your age (10 to 90).";
-  if(pStep===2){if(!(n(d.height)>=100&&n(d.height)<=230))return"Enter your height in cm (100 to 230).";if(!(n(d.weight)>=25&&n(d.weight)<=250))return"Enter your weight in kg."}
-  if(pStep===3&&!(n(d.goalW)>=25&&n(d.goalW)<=250))return"Enter your goal weight in kg.";
-  return""}
+  if(SU.step===2){
+    if(!(n(d.age)>=10&&n(d.age)<=90))return"Enter your age (10 to 90).";
+    if(!(n(d.weight)>=25&&n(d.weight)<=250))return"Enter your weight in kg (25 to 250).";
+  }
+  if(SU.step===3&&!(n(d.goalW)>=25&&n(d.goalW)<=250))return"Enter your goal weight in kg (25 to 250).";
+  return"";
+}
 document.addEventListener("click",e=>{
-  const t=e.target;let b=t.closest("[data-au]");if(b){authView(b.dataset.au);return}
-  b=t.closest("[data-u]");if(b){openU(b.dataset.u);return}
-  b=t.closest("[data-eye]");if(b){const i=b.parentNode.querySelector("input"),s=i.type==="password";i.type=s?"text":"password";b.innerHTML=ic(s?"eye-off":"eye");b.setAttribute("aria-label",s?"Hide password":"Show password");return}
-  b=t.closest("[data-pk]");if(b){const k=b.dataset.pk,v=b.dataset.pv,d=SU.d;
-    if(k==="lim"){let a=v==="none"?[]:d.lim.filter(x=>x!=="none");if(v!=="none")a=a.includes(v)?a.filter(x=>x!==v):[...a,v];d.lim=a.length?a:["none"]}
-    else d[k]=k==="push"||k==="plan"?+v:v;
-    if(k==="push"||k==="exp")d.plan=null;authView();return}
-  b=t.closest("[data-ob]");if(b){if(b.dataset.ob==="back"){SU.step--;authView()}else{document.body.classList.remove("noauth");render()}return}
-  b=t.closest('[data-a="redo"]');if(b){SU={step:1,d:Object.assign(profileDraft(S.profile),{plan:S.profile?LV.indexOf(S.track):null})};authView("setup");scrollTo(0,0);return}
-  // guided warm-up
-  b=t.closest("button");if(!b)return;const q=b.dataset;
-  if(q.wu!==undefined){wu=+q.wu;wx=-1;sdm();render()}
-  else if(q.wt!==undefined){const n=+q.wt;startT(WUS[n],"Warm-up: "+DN[5+n],()=>{if(!S.warm.includes(n))S.warm.push(n);sv();if(n<WARM.length-1)wu=n+1;sdm();render()})}
-  else if(q.wd!==undefined){const n=+q.wd;S.warm=S.warm.includes(n)?S.warm.filter(x=>x!==n):[...S.warm,n];sv();if(S.warm.includes(n)&&n<WARM.length-1)wu=n+1;sdm();render()}
-  else if(q.wx){const f0=EX.findIndex((_,i)=>[0,1,2].some(j=>!S.sets[i+"-"+j]));wx=f0<0?0:f0;sdm();render();scrollTo(0,0)}
+  let b=e.target.closest("[data-pk]");
+  if(b){SU.d[b.dataset.pk]=b.dataset.pk==="plan"?+b.dataset.pv:b.dataset.pv;S.profileDraft=SU.d;S.profileStep=SU.step;sv(true);onboardingView();return}
+  b=e.target.closest("[data-ob]");
+  if(b){if(b.dataset.ob==="back"){SU.step--;S.profileStep=SU.step;sv(true);onboardingView()}else{delete S.profileDraft;delete S.profileStep;sv(true);document.body.classList.remove("noauth");render()}return}
+  b=e.target.closest('[data-a="redo"]');
+  if(b){SU={step:1,d:profileDraft(S.profile)};onboardingView();scrollTo(0,0)}
 });
-document.addEventListener("input",e=>{const k=e.target.dataset&&e.target.dataset.sd;if(!k)return;SU.d[k]=e.target.value;if(k==="password")pwUI(e.target.value);const c=$("#aue");if(c)c.textContent=""});
-document.addEventListener("submit",async e=>{if(e.target.id!=="auf")return;e.preventDefault();const err=$("#aue"),b=e.target.querySelector(".p"),d=SU.d;
-  if(AM==="login"){b.disabled=true;b.textContent="Signing in…";b.setAttribute("aria-busy","true");try{const j=await api("POST","/api/login",{email:d.email,password:d.password});localStorage.setItem("bw-auth",JSON.stringify(j));location.reload()}catch(x){err.textContent=x.message;b.disabled=false;b.textContent="Log in";b.removeAttribute("aria-busy")}return}
-  const m=stepErr();if(m){err.textContent=m;return}
-  if(SU.step<stepsFor().length){SU.step++;authView();scrollTo(0,0);return}
-  const P=prof();
-  if(AM==="setup"){S.profile=P;S.track=P.plan;S.sk=LV.indexOf(P.plan);if(!S.bw.length||S.bw[S.bw.length-1].v!==P.weight)S.bw.push({d:Date.now(),v:P.weight});sv();document.body.classList.remove("noauth");tab="today";render();scrollTo(0,0);return}
-  b.disabled=true;b.textContent="Creating account…";b.setAttribute("aria-busy","true");try{const j=await api("POST","/api/signup",{name:d.name,email:d.email,password:d.password,profile:P});localStorage.setItem("bw-auth",JSON.stringify(j));location.reload()}catch(x){b.disabled=false;b.textContent="Create account";b.removeAttribute("aria-busy");if(/email/i.test(x.message)){SU.step=3;authView()}$("#aue").textContent=x.message}});
-document.addEventListener("visibilitychange",()=>{if(document.hidden&&st){clearTimeout(st);st=null;push()}});
-async function boot(){
-  if(!AU){authView();return}
-  try{const j=await api("GET","/api/me");AU.user=j.user;
-    if(j.state&&j.updated>(S._u||0)){Object.assign(S,j.state);S._u=j.updated;try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}}
-    else if(!j.state||(S._u||0)>j.updated)push()}catch(e){}
-  $("nav").innerHTML=[["today","dumbbell","Train"],["plan","list-checks","Plan"],["prog","trending-up","Progress"],...(AU.user.role==="admin"?[["admin","shield-check","Host"]]:[])].map(([t,i,l])=>`<button data-t="${t}">${ic(i)}<span>${l}</span></button>`).join("");
-  if(!S.profile&&AU.user.role!=="admin"){SU={step:1,d:defD()};authView("setup");return}
-  document.body.classList.remove("noauth");render()}
-// Host dashboard
-let ADM,ADU=null;
-const ago=t=>{if(!t)return"never";const m=(Date.now()-t)/6e4;return m<2?"just now":m<60?Math.round(m)+" min ago":m<1440?Math.round(m/60)+" h ago":Math.round(m/1440)+" d ago"};
-async function loadAdmin(){try{ADM=await api("GET","/api/admin/users")}catch(e){ADM={err:e.message}}render()}
-async function openU(id){try{ADU=await api("GET","/api/admin/users/"+id)}catch(e){ADU={err:e.message}}render()}
-function vAdmin(){
-  const hd=`<div class="row" style="margin:6px 0 10px"><h1>Host</h1><button data-a="adm" style="min-height:38px">Refresh</button></div>`;
-  if(ADM===undefined){ADM=null;loadAdmin()}
-  if(!ADM)return hd+`<p class="mu">Loading users…</p>`;
-  if(ADM.err)return hd+`<div class="card">${esc(ADM.err)}</div>`;
-  if(ADU){if(ADU.err)return hd+`<div class="card">${esc(ADU.err)}</div>`;const d=ADU,s=d.sum;
-    return `<div class="row" style="margin:6px 0 10px"><h1>${esc(d.user.name)}</h1><button data-a="admback" style="min-height:38px">Back</button></div><div class="card"><div class="mu">${esc(d.user.email)} · joined ${new Date(d.user.created).toLocaleDateString()} · active ${ago(d.user.last_active)}</div><div class="kpi"><div class="st"><span class="mu">Level</span><b>${LVN[s.level]||s.level}</b></div><div class="st"><span class="mu">Week</span><b>${s.week}/8</b></div><div class="st"><span class="mu">Sessions</span><b>${s.sessions}/24</b></div></div><div class="bar"><i style="width:${Math.min(100,s.sessions/24*100)}%"></i></div>${s.inSession?'<p class="mu" style="margin-top:8px">Training right now (session in progress).</p>':""}</div>
-    ${d.profile?`<div class="card mu">Age ${d.profile.age} · ${d.profile.height} cm · ${d.profile.weight} → ${d.profile.goalW} kg · goal: ${d.profile.goal} · ${d.profile.diet}</div>`:""}<div class="card"><h2>Recent sessions</h2>${d.hist.length?d.hist.slice().reverse().map(x=>`<div class="row mu" style="padding:5px 0"><span>${fmt(x.d)} · week ${x.w}</span><span>${x.n}/15 sets · ${Math.round(x.ra*100)}% of reps</span></div>`).join(""):'<p class="mu">No finished sessions yet.</p>'}</div>
-    <div class="card"><h2>Body weight</h2>${d.bw.length?d.bw.slice().reverse().map(x=>`<div class="row mu" style="padding:4px 0"><span>${fmt(x.d)}</span><span>${x.v} kg</span></div>`).join(""):'<p class="mu">No weigh-ins yet.</p>'}${d.pt.length?`<div class="mu" style="margin-top:8px">Push-up tests: ${d.pt.map(x=>x.v).join(", ")}</div>`:""}</div>`}
-  const U=ADM.users,wk=Date.now()-6048e5,act=U.filter(u=>u.last_active>wk).length,ses=U.reduce((a,u)=>a+u.sum.sessions,0),cs=U.filter(u=>u.sum.comp!==null),cp=cs.length?Math.round(cs.reduce((a,u)=>a+u.sum.comp,0)/cs.length*100)+"%":"–";
-  return hd+`<div class="kpi" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="st"><span class="mu">Users</span><b>${U.length}</b></div><div class="st"><span class="mu">Active this week</span><b>${act}</b></div><div class="st"><span class="mu">Sessions done</span><b>${ses}</b></div><div class="st"><span class="mu">Avg sets done</span><b>${cp}</b></div></div>`+
-  (U.length?U.map(u=>{const on=u.last_active>wk,s=u.sum;return `<button class="card urow" data-u="${u.id}"><div class="row"><b>${esc(u.name)}</b><span class="chip tg ${on?"g":"w"}">${on?"Active":"Quiet"}</span></div><div class="mu">${esc(u.email)}</div><div class="row mu" style="margin-top:8px"><span>${LVN[s.level]||s.level} · week ${s.week}</span><span>${s.sessions}/24</span><span>${ago(u.last_active)}</span></div><div class="bar"><i style="width:${Math.min(100,s.sessions/24*100)}%"></i></div></button>`}).join(""):'<div class="card mu">No users yet. Share your site link so people can sign up.</div>');
+document.addEventListener("input",e=>{const k=e.target.dataset&&e.target.dataset.sd;if(k){SU.d[k]=e.target.value;S.profileDraft=SU.d;S.profileStep=SU.step;sv(true)}});
+document.addEventListener("change",e=>{const k=e.target.dataset&&e.target.dataset.sd;if(k){SU.d[k]=e.target.value;S.profileDraft=SU.d;S.profileStep=SU.step;sv(true)}});
+document.addEventListener("submit",e=>{
+  if(e.target.id!=="profile-form")return;
+  e.preventDefault();
+  const error=$("#profile-error"),message=stepErr();
+  if(message){error.textContent=message;return}
+  if(SU.step<PROFILE_STEPS.length){SU.step++;S.profileDraft=SU.d;S.profileStep=SU.step;sv(true);onboardingView();scrollTo(0,0);return}
+  const profile=prof();S.profile=profile;S.track=profile.plan;S.sk=LV.indexOf(profile.plan);
+  delete S.profileDraft;delete S.profileStep;
+  if(!S.bw.length||S.bw[S.bw.length-1].v!==profile.weight)S.bw.push({d:Date.now(),v:profile.weight});
+  sv();document.body.classList.remove("noauth");tab="today";render();scrollTo(0,0);
+});
+document.addEventListener("visibilitychange",()=>{if(document.hidden)sv()});
+function boot(){
+  $("nav").innerHTML=[["today","dumbbell","Train"],["plan","list-checks","Plan"],["prog","trending-up","Progress"]].map(([t,i,l])=>`<button data-t="${t}">${ic(i)}<span>${l}</span></button>`).join("");
+  if(storageNotice)saveStatus(storageNotice,true);
+  if(!S.profile){SU={step:Math.max(1,Math.min(PROFILE_STEPS.length,Number(S.profileStep)||1)),d:profileDraft(S.profileDraft)};onboardingView();return}
+  document.body.classList.remove("noauth");render();
 }
 const MU={chest:"Chest",delt:"Shoulders",tri:"Triceps",bi:"Biceps",fore:"Forearms",lat:"Lats",trap:"Upper back",abs:"Abs",glute:"Glutes",quad:"Quads",ham:"Hamstrings",calf:"Calves"};
 const ACT=[{chest:1,delt:.8,tri:.8,abs:.5,trap:.3,glute:.25,fore:.2},
