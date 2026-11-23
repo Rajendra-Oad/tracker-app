@@ -144,6 +144,7 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("change",e=>{
   const t=e.target;
+  if(t.dataset.sd)SU.d[t.dataset.sd]=t.value;
   if(t.dataset.w!==undefined){const i=+t.dataset.w;S.warm=t.checked?[...S.warm,i]:S.warm.filter(x=>x!==i);sv()}
   if(t.dataset.r!==undefined){const k=t.dataset.r;S.sd[k]=Object.assign(S.sd[k]||{},{r:Math.max(0,parseInt(t.value,10)||0)});sv()}
   if(t.dataset.f!==undefined){const i=+t.dataset.f;S.food.c=t.checked?[...S.food.c,i]:S.food.c.filter(x=>x!==i);sv()}
@@ -228,14 +229,16 @@ async function api(m,p,b){const r=await fetch(API+p,{method:m,keepalive:m==="PUT
   const j=await r.json().catch(()=>({}));if(!r.ok){if(r.status===401&&AU&&p!=="/api/logout")logout();throw new Error(j.error||"Something went wrong. Try again.")}return j}
 const push=()=>AU?api("PUT","/api/data",{state:S}).catch(()=>{}):Promise.resolve();
 async function logout(){try{await api("POST","/api/logout")}catch(e){}localStorage.removeItem("bw-auth");localStorage.removeItem(K);location.reload()}
-const defD=()=>({phone:"",name:"",email:"",password:"",confirm:"",age:"",gender:"male",height:"",weight:"",goalW:"",goal:"gain",act:"light",push:4,exp:"new",diet:"egg",lim:["none"],plan:null});
+const defD=()=>({phone:"",phoneCode:"+91",name:"",email:"",password:"",confirm:"",age:"",gender:"male",height:"",weight:"",goalW:"",goal:"gain",act:"light",push:4,exp:"new",diet:"egg",lim:["none"],plan:null});
 let AM="login",SU={step:1,d:defD()};
 const GOALS=[["gain","Build muscle, gain weight","Eat a little extra, train 3 times a week","trending-up"],["maintain","Stay lean and fit","Keep your weight, get stronger","activity"],["lose","Lose fat","Small deficit, keep your muscle","flame"]];
 const ACTS=[["sed","Mostly sitting","Study or desk work, little walking"],["light","Lightly active","Daily walking, 1–2 workouts a week"],["mod","Moderately active","On your feet, 3–4 workouts a week"],["act","Very active","Physical job or daily sport"]];
+const PHONE_CODES=[["India","+91"],["United States / Canada","+1"],["United Kingdom","+44"],["Australia","+61"],["New Zealand","+64"],["Ireland","+353"],["United Arab Emirates","+971"],["Saudi Arabia","+966"],["Pakistan","+92"],["Bangladesh","+880"],["Sri Lanka","+94"],["Nepal","+977"],["Singapore","+65"],["Malaysia","+60"],["Indonesia","+62"],["Philippines","+63"],["Japan","+81"],["China","+86"],["Hong Kong","+852"],["South Korea","+82"],["Germany","+49"],["France","+33"],["Italy","+39"],["Spain","+34"],["Netherlands","+31"],["Switzerland","+41"],["Sweden","+46"],["Norway","+47"],["Denmark","+45"],["Brazil","+55"],["Mexico","+52"],["South Africa","+27"],["Nigeria","+234"],["Kenya","+254"],["Egypt","+20"],["Turkey","+90"]];
 const CH={gender:[["male","Male"],["female","Female"],["other","Other"]],push:[[4,"Under 8"],[10,"8–11"],[16,"12–19"],[24,"20+"]],exp:[["new","New to training"],["some","On and off"],["reg","Train regularly"]],diet:[["veg","Vegetarian"],["egg","Eggetarian"],["non","Non-veg"]],lim:[["none","None"],["wrist","Wrist"],["shoulder","Shoulder"],["knee","Knee"],["back","Lower back"]]};
 const recLevel=d=>{let k=d.push<8?0:d.push<12?1:d.push<20?2:3;if(d.exp==="new"&&k>1)k=1;return k};
 const nutri=p=>{const w=+p.weight,h=+p.height,bmr=10*w+6.25*h-5*p.age+({male:5,female:-161}[p.gender]??-78),af={sed:1.2,light:1.375,mod:1.55,act:1.725}[p.act]||1.375,adj={gain:400,maintain:0,lose:-400}[p.goal]||0;return{kcal:Math.round((bmr*af+adj)/50)*50,pl:Math.round(w*1.6),ph:Math.round(w*2),bmi:+(w/(h/100)**2).toFixed(1)}};
-const prof=()=>{const d=SU.d;return{phone:d.phone.trim(),age:+d.age,gender:d.gender,height:+d.height,weight:Math.round(+d.weight*10)/10,goalW:Math.round(+d.goalW*10)/10,goal:d.goal,act:d.act,push:d.push,exp:d.exp,diet:d.diet,lim:d.lim,plan:LV[d.plan]}};
+const profileDraft=p=>{const d=Object.assign(defD(),p||{}),phone=String(d.phone||""),match=PHONE_CODES.find(([,code])=>phone.startsWith(code));if(match){d.phoneCode=match[1];d.phone=phone.slice(match[1].length).replace(/\D/g,"")}return d};
+const prof=()=>{const d=SU.d;return{phone:`${d.phoneCode}${String(d.phone).replace(/\D/g,"")}`,age:+d.age,gender:d.gender,height:+d.height,weight:Math.round(+d.weight*10)/10,goalW:Math.round(+d.goalW*10)/10,goal:d.goal,act:d.act,push:d.push,exp:d.exp,diet:d.diet,lim:d.lim,plan:LV[d.plan]}};
 const pwChk=p=>[p.length>=8,/[a-z]/.test(p)&&/[A-Z]/.test(p),/\d/.test(p),/[^A-Za-z0-9]/.test(p)];
 const PWL=["8+ characters","Upper and lower case","A number","A symbol"],PWC=["","#ff7a6b","#f3a13c","#d6d65c","#5cc8d7"];
 function pwUI(p){const b=$("#pwb");if(!b)return;const c=pwChk(p),n=c.filter(Boolean).length;[...b.children].forEach((x,i)=>x.style.background=i<n?PWC[n]:"");[...$("#pwc").children].forEach((x,i)=>x.classList.toggle("ok",c[i]));$("#pwt").textContent=p?["Too weak","Weak","Okay","Good","Strong"][n]:""}
@@ -245,15 +248,16 @@ const opts=(k,L)=>L.map(([v,t,s,ico])=>`<button type="button" class="opt ${SU.d[
 const PROFILE_STEPS=[
   {title:"About you",note:"How old are you? Choose the gender setting for your estimates.",render:()=>`${fld("Age","age","calendar","number",'inputmode="numeric" min="10" max="90"')}<div class="auth-choice"><span>Gender</span>${chp("gender")}</div>`},
   {title:"Body measurements",note:"These help set your starting targets.",render:()=>`<div class="g2">${fld("Height (cm)","height","ruler","number",'inputmode="decimal" min="100" max="230"')}${fld("Weight (kg)","weight","scale","number",'inputmode="decimal" step="0.1" min="25" max="250"')}</div>`},
-  {title:"Your goal",note:"Set a goal weight and choose what you want to focus on.",render:()=>`${fld("Goal weight (kg)","goalW","target","number",'inputmode="decimal" step="0.1" min="25" max="250"')}<div class="auth-choice"><span>Focus</span>${opts("goal",GOALS)}</div>`},
+  {title:"Your goal weight",note:"What weight are you aiming for? You can change it later.",render:()=>fld("Goal weight (kg)","goalW","target","number",'inputmode="decimal" step="0.1" min="25" max="250"')},
+  {title:"Your focus",note:"Choose what you want your plan to help you work toward.",render:()=>opts("goal",GOALS)},
   {title:"Your routine",note:"Pick the activity level and your current push-up range.",render:()=>`<div class="auth-choice"><span>Daily activity</span>${opts("act",ACTS)}</div><div class="auth-choice"><span>Push-ups in one go</span>${chp("push")}</div>`},
   {title:"Training and food",note:"Choose the options that best describe you.",render:()=>`<div class="auth-choice"><span>Training experience</span>${chp("exp")}</div><div class="auth-choice"><span>Food preference</span>${chp("diet")}</div>`},
   {title:"Any movement limits?",note:"Pick any areas that need extra care. You can also choose None.",render:()=>chp("lim",1)},
-  {title:"Choose your plan",note:"Your suggested level is based on your answers. You can change it later.",render:()=>{const rk=recLevel(SU.d);if(SU.d.plan===null)SU.d.plan=rk;const n=nutri(SU.d);return `<div class="kpi"><div class="st"><span class="mu">BMI</span><b>${n.bmi}</b></div><div class="st"><span class="mu">Calories</span><b>${n.kcal}</b></div><div class="st"><span class="mu">Protein</span><b>${n.pl}g+</b></div></div>${LV.map((k,i)=>`<button type="button" class="opt ${SU.d.plan===i?"on":""}" aria-pressed="${SU.d.plan===i}" data-pk="plan" data-pv="${i}"><span><b>${LVN[k]}</b><small>${LVD[k]}</small></span>${i===rk?'<span class="rec">Best fit</span>':""}<span class="free">Free</span></button>`).join("")}${SU.d.lim.some(x=>x!=="none")?`<p class="mu">You listed a limit. Skip any move that hurts, and see a doctor if pain continues.</p>`:""}`}}
+  {title:"Choose your plan",note:"Your suggested level is based on your answers. You can change it later.",render:()=>{const rk=recLevel(SU.d);if(SU.d.plan===null)SU.d.plan=rk;const n=nutri(SU.d);return `<div class="kpi"><div class="st"><span class="mu">BMI</span><b>${n.bmi}</b></div><div class="st"><span class="mu">Calories</span><b>${n.kcal}</b></div><div class="st"><span class="mu">Protein</span><b>${n.pl}g+</b></div></div>${LV.map((k,i)=>`<button type="button" class="opt plan-opt ${SU.d.plan===i?"on":""}" aria-pressed="${SU.d.plan===i}" data-pk="plan" data-pv="${i}"><span class="plan-copy"><b>${LVN[k]}</b><small>${LVD[k]}</small></span><span class="plan-meta">${i===rk?`<span class="rec">${ic("check",13)}Best fit</span>`:""}<span class="free">Free</span></span></button>`).join("")}${SU.d.lim.some(x=>x!=="none")?`<p class="mu">You listed a limit. Skip any move that hurts, and see a doctor if pain continues.</p>`:""}`}}
 ];
 const ACCOUNT_STEPS=4;
 const SIGNUP_STEPS=[
-  {title:"Your mobile number",note:"We’ll save this for contact only. Use your email to sign in.",render:()=>fld("Phone number","phone","","tel",'autocomplete="tel" inputmode="tel" maxlength="24"')},
+  {title:"Your mobile number",note:"Choose your country code. We’ll save this for contact only; use your email to sign in.",render:()=>`<div class="phone-input"><label>Country code<select name="phoneCode" data-sd="phoneCode" autocomplete="tel-country-code" aria-label="Country calling code">${PHONE_CODES.map(([name,code])=>`<option value="${code}" ${SU.d.phoneCode===code?"selected":""}>${name} (${code})</option>`).join("")}</select></label>${fld("Mobile number","phone","","tel",'autocomplete="tel-national" inputmode="numeric" maxlength="18"')}</div>`},
   {title:"Your name",note:"What should we call you?",render:()=>fld("Name","name","user","text",'autocomplete="name" maxlength="60"')},
   {title:"Your email",note:"This will be your sign-in email.",render:()=>fld("Email","email","mail","email",'autocomplete="email"')},
   {title:"Set a password",note:"Use at least 8 characters and make it hard to guess.",render:()=>fld("Password","password","lock","password",'autocomplete="new-password"',1)+`<div class="pwb" id="pwb"><i></i><i></i><i></i><i></i></div><div class="pwc" id="pwc">${PWL.map(x=>`<span>${x}</span>`).join("")}</div><p class="mu" id="pwt" style="margin:4px 0 12px"></p>`+fld("Confirm password","confirm","lock","password",'autocomplete="new-password"',1)}
@@ -271,7 +275,8 @@ function authView(m){
   if(AM==="signup"&&st===4)pwUI(d.password)}
 function stepErr(){const d=SU.d,st=SU.step,n=parseFloat;
   if(AM==="signup"){
-    if(st===1&&!/^\+?[\d\s().-]{7,24}$/.test(d.phone.trim()))return"Enter a valid phone number, including the country code if needed.";
+    const digits=String(d.phone).replace(/\D/g,"");
+    if(st===1&&(!PHONE_CODES.some(([,code])=>code===d.phoneCode)||digits.length<6||digits.length>14))return"Enter a valid mobile number for the selected country code.";
     if(st===2&&!d.name.trim())return"Enter your name.";
     if(st===3&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email.trim()))return"Enter a valid email address.";
     if(st===4){const c=pwChk(d.password);if(!c[0])return"Use at least 8 characters.";if(c.filter(Boolean).length<3)return"Make the password stronger: add upper case, a number or a symbol.";if(d.password!==d.confirm)return"The two passwords do not match."}
@@ -290,7 +295,7 @@ document.addEventListener("click",e=>{
     else d[k]=k==="push"||k==="plan"?+v:v;
     if(k==="push"||k==="exp")d.plan=null;authView();return}
   b=t.closest("[data-ob]");if(b){if(b.dataset.ob==="back"){SU.step--;authView()}else{document.body.classList.remove("noauth");render()}return}
-  b=t.closest('[data-a="redo"]');if(b){SU={step:1,d:Object.assign(defD(),S.profile||{},{plan:S.profile?LV.indexOf(S.track):null})};authView("setup");scrollTo(0,0);return}
+  b=t.closest('[data-a="redo"]');if(b){SU={step:1,d:Object.assign(profileDraft(S.profile),{plan:S.profile?LV.indexOf(S.track):null})};authView("setup");scrollTo(0,0);return}
   // guided warm-up
   b=t.closest("button");if(!b)return;const q=b.dataset;
   if(q.wu!==undefined){wu=+q.wu;wx=-1;sdm();render()}
