@@ -11,7 +11,7 @@ const postJson = async (path, body) => {
   }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    if (response.status === 404) throw new Error("Password recovery endpoint not found. Check that API_BASE points to the updated tracker API.");
+    if (response.status === 404) throw new Error("The running API does not include password recovery yet. Restart or redeploy the updated server; if the frontend and API are separate, check API_BASE.");
     throw new Error(data && data.error || `The server returned an error (${response.status}). Try again or contact the site administrator.`);
   }
   if (!data || !data.message) throw new Error("The server returned an unexpected response. Check API_BASE and try again.");

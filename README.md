@@ -127,6 +127,7 @@ Authenticated API calls use `Authorization: Bearer <token>`. Sessions expire aft
 - Put the app behind HTTPS before collecting real credentials. Do not expose it over plain HTTP on a public network.
 - Configure `ADMIN_EMAIL` and `ADMIN_PASSWORD` before the first start, and use a unique, strong password.
 - If the frontend and API are on different origins, set `CORS_ORIGIN` to the exact frontend origin and set `window.API_BASE` to the API origin in `public/api-config.js`. The shared config is loaded by the tracker and password-recovery pages.
+- Restart or redeploy the Node server after updating `server.js`; a running process does not load new API routes automatically.
 - Keep regular, restorable database backups. The SQLite database and its `-wal` / `-shm` sidecar files are ignored by Git.
 
 ## Performance
