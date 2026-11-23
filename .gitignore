@@ -1,6 +1,4 @@
-@"
 node_modules/
 *.db
 *.db-*
 .env
-"@ | Set-Content .gitignore
