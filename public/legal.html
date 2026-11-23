@@ -61,7 +61,8 @@
       <li>Account and tracker data are stored in the host's SQLite database. By default, its file is named <code>tracker.db</code>; the host can choose another location.</li>
       <li>The browser keeps a local copy of tracker data and the sign-in token in local storage. Anyone who can use your unlocked browser profile may be able to use your active session, so log out on shared devices.</li>
       <li>Server sessions expire after 30 days. Logging out removes the browser token and asks the server to revoke that session.</li>
-      <li><strong>Reset all data</strong> clears saved tracker and profile data, but does not delete your account. There is currently no in-app account deletion or password reset. Contact the site host to request account/data removal or password help.</li>
+      <li><strong>Reset all data</strong> clears saved tracker and profile data, but does not delete your account. There is no in-app account deletion; contact the site host to request account/data removal.</li>
+      <li>Password-reset email is available only when the host configures email delivery. Links expire after 30 minutes, work once, and are stored on the server as hashes. Changing your password signs out active sessions. If email reset is not configured, contact the host for help.</li>
       <li>The host controls how long the database and its backups are kept. Ask the host about their retention and backup practices.</li>
     </ul>
     <p>Passwords are processed by the server using a unique salt and the scrypt password-hashing function. The app does not configure HTTPS itself; the host must provide HTTPS for a public deployment.</p>

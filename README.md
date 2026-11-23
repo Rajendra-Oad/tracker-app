@@ -55,6 +55,9 @@ public/
   app.js            Tracker UI, workout logic, and adaptive coach
   styles.css        Responsive styles and theme
   legal.html        Privacy notice and terms of use
+  forgot-password.html  Request a password reset
+  reset-password.html   Set a new password from an email link
+  password-reset.js     Password reset form behavior
 package.json        Runtime requirement and start command
 ```
 
@@ -67,9 +70,35 @@ The app has no frontend build step or frontend framework. Express serves the fil
 - Profile setup asks about goal weight and fitness focus on separate screens.
 - Sign-up links to [Privacy & Terms](public/legal.html), which explains stored data, host access, browser storage, and the tracker's intended use. The host should review it for their deployment before public use.
 - Passwords are stored as salted `scrypt` hashes; the original password is not stored.
+- The login screen includes email-based password recovery when the host configures a verified sending domain and email API key.
 - Each user's tracker state is stored in SQLite and cached in that user's browser.
 - The host account can view users' training progress and profile details. Tell users about this access before they sign up.
 - Back up the database file regularly. It contains account and training data.
+
+## Password recovery setup
+
+Password reset emails use the Resend API through Node's built-in `fetch`; no extra package is required. Resend currently lists a free transactional-email tier with up to 3,000 emails per month and 100 per day. A verified domain is required to send from your own address; check the current [Resend pricing](https://resend.com/pricing) and [verified-domain setup](https://resend.com/docs/dashboard/domains/introduction).
+
+1. Add your sending domain in Resend and publish the DNS records it provides.
+2. Create an API key for sending email.
+3. Configure the app's public origin and sender address, then restart the server.
+
+   **Windows PowerShell:**
+
+   ```powershell
+   $env:RESEND_API_KEY = "re_your_key"
+   $env:MAIL_FROM = "HTF <accounts@yourdomain.com>"
+   $env:APP_URL = "https://tracker.yourdomain.com"
+   npm start
+   ```
+
+   **macOS / Linux:**
+
+   ```sh
+   RESEND_API_KEY='re_your_key' MAIL_FROM='HTF <accounts@yourdomain.com>' APP_URL='https://tracker.yourdomain.com' npm start
+   ```
+
+`APP_URL` must be the site's origin (no path); production reset links require HTTPS. Keep the API key in the host's secret/environment settings, never in source control. Reset links are single-use, expire after 30 minutes, and changing a password signs out active sessions. Requests do not reveal whether an email address has an account. If email settings are missing, the reset page tells the user to contact the host. The Resend free tier and limits can change.
 
 ## How the adaptive coach works
 
@@ -82,6 +111,8 @@ The coach is a small, explainable **heuristic**, not a trained machine-learning 
 | `POST` | `/api/signup` | Create an account |
 | `POST` | `/api/login` | Sign in |
 | `POST` | `/api/logout` | Revoke the current session |
+| `POST` | `/api/password-reset` | Request a reset email |
+| `POST` | `/api/password-reset/confirm` | Set a new password using a reset link |
 | `GET` | `/api/me` | Read the signed-in user and saved tracker state |
 | `PUT` | `/api/data` | Save tracker state |
 | `GET` | `/api/admin/users` | List users (host only) |

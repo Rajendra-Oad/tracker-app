@@ -260,14 +260,14 @@ const SIGNUP_STEPS=[
   {title:"Your mobile number",note:"Choose your country code. We’ll save this for contact only; use your email to sign in.",render:()=>`<div class="phone-input"><label>Country code<select name="phoneCode" data-sd="phoneCode" autocomplete="tel-country-code" aria-label="Country calling code">${PHONE_CODES.map(([name,code])=>`<option value="${code}" ${SU.d.phoneCode===code?"selected":""}>${name} (${code})</option>`).join("")}</select></label>${fld("Mobile number","phone","","tel",'autocomplete="tel-national" inputmode="numeric" maxlength="18"')}</div>`},
   {title:"Your name",note:"What should we call you?",render:()=>fld("Name","name","user","text",'autocomplete="name" maxlength="60"')},
   {title:"Your email",note:"This will be your sign-in email.",render:()=>fld("Email","email","mail","email",'autocomplete="email"')},
-  {title:"Set a password",note:"Use at least 8 characters and make it hard to guess.",render:()=>fld("Password","password","lock","password",'autocomplete="new-password"',1)+`<div class="pwb" id="pwb"><i></i><i></i><i></i><i></i></div><div class="pwc" id="pwc">${PWL.map(x=>`<span>${x}</span>`).join("")}</div><p class="mu" id="pwt" style="margin:4px 0 12px"></p>`+fld("Confirm password","confirm","lock","password",'autocomplete="new-password"',1)}
+  {title:"Set a password",note:"Use 8–128 characters and make it hard to guess.",render:()=>fld("Password","password","lock","password",'autocomplete="new-password" maxlength="128"',1)+`<div class="pwb" id="pwb"><i></i><i></i><i></i><i></i></div><div class="pwc" id="pwc">${PWL.map(x=>`<span>${x}</span>`).join("")}</div><p class="mu" id="pwt" style="margin:4px 0 12px"></p>`+fld("Confirm password","confirm","lock","password",'autocomplete="new-password" maxlength="128"',1)}
 ];
 const stepsFor=()=>AM==="setup"?PROFILE_STEPS:SIGNUP_STEPS.concat(PROFILE_STEPS);
 function authView(m){
   if(m){AM=m;if(m==="signup")SU={step:1,d:defD()}}
   document.body.classList.add("noauth");
   const L=AM==="login",se=AM==="setup",flow=L?[]:stepsFor(),st=L?0:SU.step,stage=L?null:flow[st-1],d=SU.d;
-  const b=L?fld("Email","email","mail","email",'autocomplete="email"')+fld("Password","password","lock","password",'autocomplete="current-password"',1):stage.render();
+  const b=L?fld("Email","email","mail","email",'autocomplete="email"')+fld("Password","password","lock","password",'autocomplete="current-password"',1)+'<p class="auth-help"><a href="/forgot-password.html">Forgot password?</a></p>':stage.render();
   const last=!L&&st===flow.length,back=!L&&st>1?`<button type="button" data-ob="back" style="flex:1">${ic("chevron-left")}Back</button>`:se&&S.profile?`<button type="button" data-ob="cancel" style="flex:1">Cancel</button>`:"";
   const btn=L?`<button class="p" style="width:100%">Log in</button>`:`<div class="row auth-actions" style="gap:8px">${back}<button class="p" style="flex:2">${last?(se?"Start training":"Create account"):"Next"}</button></div>`;
   const tabs=!se&&(L||st===1),total=flow.length;
@@ -279,7 +279,7 @@ function stepErr(){const d=SU.d,st=SU.step,n=parseFloat;
     if(st===1&&(!PHONE_CODES.some(([,code])=>code===d.phoneCode)||digits.length<6||digits.length>14))return"Enter a valid mobile number for the selected country code.";
     if(st===2&&!d.name.trim())return"Enter your name.";
     if(st===3&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email.trim()))return"Enter a valid email address.";
-    if(st===4){const c=pwChk(d.password);if(!c[0])return"Use at least 8 characters.";if(c.filter(Boolean).length<3)return"Make the password stronger: add upper case, a number or a symbol.";if(d.password!==d.confirm)return"The two passwords do not match."}
+    if(st===4){if(d.password.length>128)return"Use 128 characters or fewer.";const c=pwChk(d.password);if(!c[0])return"Use at least 8 characters.";if(c.filter(Boolean).length<3)return"Make the password stronger: add upper case, a number or a symbol.";if(d.password!==d.confirm)return"The two passwords do not match."}
   }
   const pStep=AM==="setup"?st:st-ACCOUNT_STEPS;
   if(pStep===1&&!(n(d.age)>=10&&n(d.age)<=90))return"Enter your age (10 to 90).";

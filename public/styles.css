@@ -165,6 +165,24 @@ body.noauth #app{min-height:100vh;min-height:100svh;display:grid;align-items:cen
 .legal-footer{display:grid;gap:12px}
 .legal-footer p{max-width:70ch;color:var(--mute);font-size:.875rem}
 @media(max-width:480px){.legal-page{padding:18px 14px 40px}.legal-header{margin-bottom:24px}.legal-nav{margin-bottom:24px}}
+body.password-page{min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:24px 14px}
+.password-card{width:min(100%,28rem);padding:24px;background:var(--card);border-radius:18px}
+.password-brand{display:inline-block;margin-bottom:18px;color:var(--ink);font-size:1.2rem;font-weight:800;letter-spacing:-.06em;text-decoration:none}
+.password-card h1{margin-bottom:8px;font-size:1.55rem}
+.password-lede{margin:0 0 20px;color:var(--mute)}
+.password-card label{display:block;margin:0 0 12px;color:var(--mute);font-size:.875rem}
+.password-card input{display:block;width:100%;min-height:46px;margin-top:6px;padding:0 12px;border:0;border-radius:12px;background:var(--fld);color:var(--ink);font:inherit}
+.password-card .p{width:100%;margin:4px 0 12px}
+.password-card a{color:var(--acc);text-underline-offset:3px}
+.password-hint{margin:-6px 0 14px;color:var(--mute);font-size:.8rem}
+.password-status{min-height:1.5em;margin:8px 0;color:var(--mute);font-size:.875rem}
+.password-status.error{color:#ff9b8f}
+.password-status.success{color:var(--ok)}
+.password-back{display:inline-block;margin-top:8px}
+.password-success p{margin:8px 0}
+.password-success a{display:inline-block;margin-top:8px}
+.password-card [hidden]{display:none}
+@media(max-width:380px){.password-card{padding:18px}}
 .au form.card{padding:clamp(20px,5vw,26px);border:1px solid var(--line);box-shadow:0 18px 48px #0005}
 .auth-note{margin-top:14px}
 .auth-question{margin-bottom:16px}
