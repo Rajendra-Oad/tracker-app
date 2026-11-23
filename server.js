@@ -189,4 +189,5 @@ app.get("/api/admin/users/:id", auth, host, (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname, "public")));
-app.listen(process.env.PORT || 3000, () => console.log(`Tracker running on http://localhost:${process.env.PORT || 3000}`));
+const port = process.env.PORT || 3000;
+app.listen(port, "0.0.0.0", () => console.log(`Tracker listening on port ${port}`));

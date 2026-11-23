@@ -121,6 +121,28 @@ The coach is a small, explainable **heuristic**, not a trained machine-learning 
 
 Authenticated API calls use `Authorization: Bearer <token>`. Sessions expire after 30 days.
 
+## Deploy on Render
+
+1. In Render, create a **Web Service** for this repository and deploy the `main` branch. Leave **Root Directory** empty. Use `npm install` as the build command and `npm start` as the start command.
+2. In the service's **Environment** settings, add:
+
+   | Key | Value |
+   | --- | --- |
+   | `NODE_VERSION` | `24.22.1` (or another supported version at least `22.13`) |
+   | `NODE_ENV` | `production` |
+   | `ADMIN_EMAIL` | The host account email (set before the database creates its first admin) |
+   | `ADMIN_PASSWORD` | A strong, unique host password (set before the database creates its first admin) |
+   | `RESEND_API_KEY` | Your Resend API key; keep it in Render, not Git |
+   | `MAIL_FROM` | For example, `HTF <accounts@yourdomain.com>` |
+   | `APP_URL` | The service's public HTTPS origin, such as `https://your-service.onrender.com` |
+
+   `MAIL_FROM` must use a domain you own and have verified in Resend. Add that domain in Resend, publish its DNS records, then create an API key. `APP_URL` must be the public HTTPS origin without a path. Save the variables and deploy the service. Render supplies `PORT`; the app listens on it automatically. For a single Render service serving both the UI and API, leave `window.API_BASE` empty.
+
+3. **Keep the SQLite database persistent.** Render's default filesystem is ephemeral, so the app's account and tracker data can be lost when the service restarts or deploys. Attach a persistent disk to the web service (available on paid services), mount it at `/var/data`, and add `DB_FILE=/var/data/tracker.db`. A free service without a persistent disk is suitable only for testing this SQLite setup; durable production data needs a persistent disk or a database migration.
+4. After deployment, open `https://your-service.onrender.com/forgot-password.html` and request a reset for an account email. The response intentionally does not reveal whether the account exists; check the inbox and spam folder.
+
+See Render's [web service](https://render.com/docs/web-services), [environment variable](https://render.com/docs/configure-environment-variables), [Node version](https://render.com/docs/node-version), and [persistent disk](https://render.com/docs/disks) guides, plus Resend's [verified-domain guide](https://resend.com/docs/dashboard/domains/introduction).
+
 ## Deployment notes
 
 - Use a host with persistent storage for the SQLite database and configure `DB_FILE` if needed.
