@@ -97,6 +97,7 @@ details.card summary{font-size:1rem}
 .err{min-height:1.3em;margin:0 0 8px;color:#ff9b8f;font-size:.875rem}
 body.noauth nav,body.noauth #tm{display:none}
 .urow{display:block;width:100%;text-align:left;padding:14px;font-weight:400;min-height:0}
+button[data-a="logout"]{background:#3b2427;color:#ff9b91}
 .i{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:-.2em}
 button{display:inline-flex;align-items:center;justify-content:center;gap:8px;line-height:1.1}
 .i{display:block;vertical-align:baseline}
