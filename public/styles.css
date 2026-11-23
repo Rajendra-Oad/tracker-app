@@ -137,11 +137,34 @@ body.noauth #app{min-height:100vh;min-height:100svh;display:grid;align-items:cen
 .au h1.wordmark{display:block;text-align:center;font-size:2.4rem;font-weight:800;letter-spacing:-.08em;margin-bottom:18px}
 .auth-sub{margin:8px 0 18px}
 .auth-sub:empty{display:none}
+.auth-note a{color:var(--acc);text-underline-offset:3px}
 .auth-tabs{margin:0 0 12px;padding:4px;background:var(--card);border-radius:14px}
 .auth-tabs button{flex:1}
 .auth-progress{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px 12px;margin:0 2px 12px;font-size:.82rem;color:var(--mute)}
 .auth-progress b{color:var(--ink);font-weight:600}
 .auth-progress .dots{grid-column:1/-1;margin:0}
+.legal-page{max-width:760px;margin:0 auto;padding:24px 20px 56px}
+.legal-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:32px}
+.legal-brand{color:var(--ink);font-size:1.2rem;font-weight:800;letter-spacing:-.06em;text-decoration:none}
+.legal-page a{color:var(--acc);text-underline-offset:3px}
+.legal-page h1{font-size:2rem;letter-spacing:-.04em;margin-bottom:8px}
+.legal-lede{max-width:70ch;color:var(--mute)}
+.legal-summary{margin:20px 0;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+.legal-summary strong{display:block;margin-bottom:6px}
+.legal-summary ul,.legal-section ul{padding-left:22px}
+.legal-page nav.legal-nav{position:static;left:auto;right:auto;bottom:auto;width:auto;max-width:none;transform:none;z-index:auto;display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 32px;padding:0;background:transparent;border:0;border-radius:0}
+.legal-nav a{padding:7px 10px;background:var(--fld);border-radius:999px;text-decoration:none;font-size:.85rem}
+.legal-section{padding:0 0 24px;margin:0 0 24px;border-bottom:1px solid var(--line);scroll-margin-top:16px}
+.legal-section h2{margin-bottom:8px}
+.legal-section h3{margin:18px 0 6px;font-size:.98rem}
+.legal-page p,.legal-page li{max-width:70ch;color:var(--mute)}
+.legal-page p{margin:0 0 10px}
+.legal-page li{margin:0 0 8px;padding-left:4px}
+.legal-page strong{color:var(--ink)}
+.legal-page code{padding:1px 5px;background:var(--fld);border-radius:5px;font-size:.9em}
+.legal-footer{display:grid;gap:12px}
+.legal-footer p{max-width:70ch;color:var(--mute);font-size:.875rem}
+@media(max-width:480px){.legal-page{padding:18px 14px 40px}.legal-header{margin-bottom:24px}.legal-nav{margin-bottom:24px}}
 .au form.card{padding:clamp(20px,5vw,26px);border:1px solid var(--line);box-shadow:0 18px 48px #0005}
 .auth-note{margin-top:14px}
 .auth-question{margin-bottom:16px}

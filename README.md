@@ -54,6 +54,7 @@ public/
   index.html        App shell
   app.js            Tracker UI, workout logic, and adaptive coach
   styles.css        Responsive styles and theme
+  legal.html        Privacy notice and terms of use
 package.json        Runtime requirement and start command
 ```
 
@@ -64,6 +65,7 @@ The app has no frontend build step or frontend framework. Express serves the fil
 - Sign-up creates a user account and saves the initial profile and plan.
 - Sign-up asks for a mobile number as contact-only profile information, with a country-code picker defaulting to India (+91). Email and password remain the sign-in credentials; phone-number login and SMS verification are not supported.
 - Profile setup asks about goal weight and fitness focus on separate screens.
+- Sign-up links to [Privacy & Terms](public/legal.html), which explains stored data, host access, browser storage, and the tracker's intended use. The host should review it for their deployment before public use.
 - Passwords are stored as salted `scrypt` hashes; the original password is not stored.
 - Each user's tracker state is stored in SQLite and cached in that user's browser.
 - The host account can view users' training progress and profile details. Tell users about this access before they sign up.

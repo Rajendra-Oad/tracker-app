@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#141416">
+<meta name="description" content="How HTF handles account and training data, and the terms for using the tracker.">
+<title>HTF | Privacy &amp; Terms</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<main class="legal-page">
+  <header class="legal-header">
+    <a class="legal-brand" href="/" aria-label="HTF home">HTF</a>
+    <a href="/">Back to tracker</a>
+  </header>
+
+  <h1>Privacy &amp; terms</h1>
+  <p class="legal-lede">This page explains what the tracker saves, who can see it, and how to use HTF responsibly. The site host is the person or organization operating the HTF address you are using.</p>
+
+  <aside class="legal-summary" aria-label="Key information">
+    <strong>Before you create an account</strong>
+    <ul>
+      <li>The site host can view your profile and training progress.</li>
+      <li>Your password is stored as a salted hash, not as plain text.</li>
+      <li>Your phone number is contact information only; it is not used to sign in or for SMS verification.</li>
+      <li>HTF's training and food targets are estimates, not medical advice.</li>
+    </ul>
+  </aside>
+
+  <nav class="legal-nav" aria-label="On this page">
+    <a href="#data">Data collected</a>
+    <a href="#access">Use and access</a>
+    <a href="#storage">Storage and controls</a>
+    <a href="#services">External services</a>
+    <a href="#terms">Terms and conditions</a>
+    <a href="#contact">Questions</a>
+  </nav>
+
+  <section class="legal-section" id="data">
+    <h2>Data collected</h2>
+    <p>HTF saves the information needed to run your account and keep your tracker in sync:</p>
+    <ul>
+      <li><strong>Account details:</strong> your name, email address, a salted password hash, and account activity timestamps. The app does not save your original password in its database.</li>
+      <li><strong>Contact and profile:</strong> your phone number, age, gender, height, current and goal weight, fitness goal, activity level, push-up range, training experience, food preference, movement limits, and selected plan.</li>
+      <li><strong>Training and progress:</strong> plan and coach state, workout and session history, sets, reps and effort entries, bodyweight records, push-up tests, and food checklist selections.</li>
+      <li><strong>Sign-up and login protection:</strong> the app uses the request IP address in server memory to limit repeated sign-up and login attempts. The hosting provider may also keep its own network or server logs.</li>
+    </ul>
+  </section>
+
+  <section class="legal-section" id="access">
+    <h2>How information is used and who can see it</h2>
+    <p>Your information is used to create and secure your account, save your tracker, calculate plan estimates, and show your progress.</p>
+    <p>The host can see account details, profile information, and training progress through the host dashboard. The dashboard includes recent workout summaries and history, bodyweight records, and push-up test results. The person or organization operating the server may also access the server and its database.</p>
+    <p>Normal user accounts see their own tracker; the app does not provide public profiles or a feature for sharing your progress with other users.</p>
+  </section>
+
+  <section class="legal-section" id="storage">
+    <h2>Storage, sessions, and your controls</h2>
+    <ul>
+      <li>Account and tracker data are stored in the host's SQLite database. By default, its file is named <code>tracker.db</code>; the host can choose another location.</li>
+      <li>The browser keeps a local copy of tracker data and the sign-in token in local storage. Anyone who can use your unlocked browser profile may be able to use your active session, so log out on shared devices.</li>
+      <li>Server sessions expire after 30 days. Logging out removes the browser token and asks the server to revoke that session.</li>
+      <li><strong>Reset all data</strong> clears saved tracker and profile data, but does not delete your account. There is currently no in-app account deletion or password reset. Contact the site host to request account/data removal or password help.</li>
+      <li>The host controls how long the database and its backups are kept. Ask the host about their retention and backup practices.</li>
+    </ul>
+    <p>Passwords are processed by the server using a unique salt and the scrypt password-hashing function. The app does not configure HTTPS itself; the host must provide HTTPS for a public deployment.</p>
+  </section>
+
+  <section class="legal-section" id="services">
+    <h2>External services</h2>
+    <p>The adaptive coach uses rules in your browser. It is not a trained machine-learning model, and the app does not send your workout data to an external AI model.</p>
+    <p>If you open a 3D exercise demo, your browser requests the Three.js library from cdnjs. That service receives a normal browser request; HTF does not include your profile or workout history in that request. The demo's 2D fallback works if the library cannot be loaded.</p>
+  </section>
+
+  <section class="legal-section" id="terms">
+    <h2>Terms and conditions</h2>
+    <ul>
+      <li>Use HTF as a personal workout and progress tracker. Keep your sign-in details private and use only your own account. Do not try to access another person's account or data.</li>
+      <li>Workout suggestions, calorie targets, and other calculations are estimates. They are for general information, not medical diagnosis, treatment, or individualized professional nutrition advice, and they do not guarantee a result.</li>
+      <li>Choose exercises that are appropriate for you. Stop if an exercise causes pain, and seek advice from a qualified health professional when needed, especially if you have an injury or health condition.</li>
+      <li>The site host operates this installation and may maintain, change, or stop making it available.</li>
+    </ul>
+  </section>
+
+  <section class="legal-section" id="contact">
+    <h2>Questions or data requests</h2>
+    <p>Contact the person or organization that gave you this HTF site address to ask about your data, request account removal, or get help. This app does not currently display a support email or contact form.</p>
+  </section>
+
+  <footer class="legal-footer">
+    <p>This notice describes the current app behavior. Before using HTF publicly, the site host should confirm that it matches their deployment, contact details, retention practices, and applicable local requirements.</p>
+    <a href="/">Return to HTF</a>
+  </footer>
+</main>
+</body>
+</html>
