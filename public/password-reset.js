@@ -1,7 +1,7 @@
 const postJson = async (path, body) => {
   let response;
   try {
-    response = await fetch(path, {
+    response = await fetch(`${window.API_BASE || ""}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
@@ -9,9 +9,12 @@ const postJson = async (path, body) => {
   } catch {
     throw new Error("Could not reach the server. Check your connection and try again.");
   }
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "The request failed. Try again.");
-  if (!data.message) throw new Error("The server returned an unexpected response. Try again.");
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    if (response.status === 404) throw new Error("Password recovery endpoint not found. Check that API_BASE points to the updated tracker API.");
+    throw new Error(data && data.error || `The server returned an error (${response.status}). Try again or contact the site administrator.`);
+  }
+  if (!data || !data.message) throw new Error("The server returned an unexpected response. Check API_BASE and try again.");
   return data;
 };
 

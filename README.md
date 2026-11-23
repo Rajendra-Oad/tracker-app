@@ -52,6 +52,7 @@ Set `PORT` to use a different port. Set `DB_FILE` to store the SQLite database s
 server.js           Express API, authentication, and SQLite persistence
 public/
   index.html        App shell
+  api-config.js     Shared frontend/API origin configuration
   app.js            Tracker UI, workout logic, and adaptive coach
   styles.css        Responsive styles and theme
   legal.html        Privacy notice and terms of use
@@ -125,7 +126,7 @@ Authenticated API calls use `Authorization: Bearer <token>`. Sessions expire aft
 - Use a host with persistent storage for the SQLite database and configure `DB_FILE` if needed.
 - Put the app behind HTTPS before collecting real credentials. Do not expose it over plain HTTP on a public network.
 - Configure `ADMIN_EMAIL` and `ADMIN_PASSWORD` before the first start, and use a unique, strong password.
-- If the frontend and API are on different origins, set `CORS_ORIGIN` to the exact frontend origin and set `window.API_BASE` to the API URL before `app.js` loads in `public/index.html`.
+- If the frontend and API are on different origins, set `CORS_ORIGIN` to the exact frontend origin and set `window.API_BASE` to the API origin in `public/api-config.js`. The shared config is loaded by the tracker and password-recovery pages.
 - Keep regular, restorable database backups. The SQLite database and its `-wal` / `-shm` sidecar files are ignored by Git.
 
 ## Performance
