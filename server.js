@@ -50,6 +50,7 @@ const cleanProfile = p => { p = p && typeof p === "object" ? p : {}; return {
   age: clamp(p.age, 10, 90, 20), gender: pick(p.gender, ["male", "female", "other"], "male"), height: clamp(p.height, 100, 230, 170),
   weight: clamp(p.weight, 25, 250, 55), goalW: clamp(p.goalW, 25, 250, 60), goal: pick(p.goal, ["gain", "maintain", "lose"], "gain"),
   act: pick(p.act, ["sed", "light", "mod", "act"], "light"), push: clamp(p.push, 0, 200, 4), exp: pick(p.exp, ["new", "some", "reg"], "new"),
+  phone: String(p.phone || "").replace(/[^\d+().\-\s]/g, "").trim().slice(0, 32),
   diet: pick(p.diet, ["veg", "egg", "non"], "egg"), lim: (Array.isArray(p.lim) ? p.lim : []).filter(x => ["none", "wrist", "shoulder", "knee", "back"].includes(x)).slice(0, 5),
   plan: pick(p.plan, ["A", "B", "C", "D"], "A") }; };
 

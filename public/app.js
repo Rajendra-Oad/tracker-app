@@ -228,40 +228,58 @@ async function api(m,p,b){const r=await fetch(API+p,{method:m,keepalive:m==="PUT
   const j=await r.json().catch(()=>({}));if(!r.ok){if(r.status===401&&AU&&p!=="/api/logout")logout();throw new Error(j.error||"Something went wrong. Try again.")}return j}
 const push=()=>AU?api("PUT","/api/data",{state:S}).catch(()=>{}):Promise.resolve();
 async function logout(){try{await api("POST","/api/logout")}catch(e){}localStorage.removeItem("bw-auth");localStorage.removeItem(K);location.reload()}
-const defD=()=>({name:"",email:"",password:"",confirm:"",age:"",gender:"male",height:"",weight:"",goalW:"",goal:"gain",act:"light",push:4,exp:"new",diet:"egg",lim:["none"],plan:null});
+const defD=()=>({phone:"",name:"",email:"",password:"",confirm:"",age:"",gender:"male",height:"",weight:"",goalW:"",goal:"gain",act:"light",push:4,exp:"new",diet:"egg",lim:["none"],plan:null});
 let AM="login",SU={step:1,d:defD()};
 const GOALS=[["gain","Build muscle, gain weight","Eat a little extra, train 3 times a week","trending-up"],["maintain","Stay lean and fit","Keep your weight, get stronger","activity"],["lose","Lose fat","Small deficit, keep your muscle","flame"]];
 const ACTS=[["sed","Mostly sitting","Study or desk work, little walking"],["light","Lightly active","Daily walking, 1–2 workouts a week"],["mod","Moderately active","On your feet, 3–4 workouts a week"],["act","Very active","Physical job or daily sport"]];
 const CH={gender:[["male","Male"],["female","Female"],["other","Other"]],push:[[4,"Under 8"],[10,"8–11"],[16,"12–19"],[24,"20+"]],exp:[["new","New to training"],["some","On and off"],["reg","Train regularly"]],diet:[["veg","Vegetarian"],["egg","Eggetarian"],["non","Non-veg"]],lim:[["none","None"],["wrist","Wrist"],["shoulder","Shoulder"],["knee","Knee"],["back","Lower back"]]};
 const recLevel=d=>{let k=d.push<8?0:d.push<12?1:d.push<20?2:3;if(d.exp==="new"&&k>1)k=1;return k};
 const nutri=p=>{const w=+p.weight,h=+p.height,bmr=10*w+6.25*h-5*p.age+({male:5,female:-161}[p.gender]??-78),af={sed:1.2,light:1.375,mod:1.55,act:1.725}[p.act]||1.375,adj={gain:400,maintain:0,lose:-400}[p.goal]||0;return{kcal:Math.round((bmr*af+adj)/50)*50,pl:Math.round(w*1.6),ph:Math.round(w*2),bmi:+(w/(h/100)**2).toFixed(1)}};
-const prof=()=>{const d=SU.d;return{age:+d.age,gender:d.gender,height:+d.height,weight:Math.round(+d.weight*10)/10,goalW:Math.round(+d.goalW*10)/10,goal:d.goal,act:d.act,push:d.push,exp:d.exp,diet:d.diet,lim:d.lim,plan:LV[d.plan]}};
+const prof=()=>{const d=SU.d;return{phone:d.phone.trim(),age:+d.age,gender:d.gender,height:+d.height,weight:Math.round(+d.weight*10)/10,goalW:Math.round(+d.goalW*10)/10,goal:d.goal,act:d.act,push:d.push,exp:d.exp,diet:d.diet,lim:d.lim,plan:LV[d.plan]}};
 const pwChk=p=>[p.length>=8,/[a-z]/.test(p)&&/[A-Z]/.test(p),/\d/.test(p),/[^A-Za-z0-9]/.test(p)];
 const PWL=["8+ characters","Upper and lower case","A number","A symbol"],PWC=["","#ff7a6b","#f3a13c","#d6d65c","#5cc8d7"];
 function pwUI(p){const b=$("#pwb");if(!b)return;const c=pwChk(p),n=c.filter(Boolean).length;[...b.children].forEach((x,i)=>x.style.background=i<n?PWC[n]:"");[...$("#pwc").children].forEach((x,i)=>x.classList.toggle("ok",c[i]));$("#pwt").textContent=p?["Too weak","Weak","Okay","Good","Strong"][n]:""}
-const fld=(l,k,ico,t="text",a="",eye=0)=>`<label>${l}<div class="inp">${ic(ico)}<input name="${k}" data-sd="${k}" type="${t}" value="${esc(SU.d[k]??"")}" aria-required="true" ${a}>${eye?`<button type="button" class="eye" data-eye aria-label="Show password">${ic("eye")}</button>`:""}</div></label>`;
-const chp=(k,multi)=>`<div class="chips">${CH[k].map(([v,l])=>`<button type="button" data-pk="${k}" data-pv="${v}" class="${(multi?SU.d[k].includes(v):SU.d[k]===v)?"on":""}">${l}</button>`).join("")}</div>`;
-const opts=(k,L)=>L.map(([v,t,s,ico])=>`<button type="button" class="opt ${SU.d[k]===v?"on":""}" data-pk="${k}" data-pv="${v}">${ico?ic(ico):""}<span><b>${t}</b><small>${s}</small></span></button>`).join("");
+const fld=(l,k,ico,t="text",a="",eye=0)=>`<label>${l}<div class="inp${ico?"":" no-icon"}">${ico?ic(ico):""}<input name="${k}" data-sd="${k}" type="${t}" value="${esc(SU.d[k]??"")}" aria-required="true" ${a}>${eye?`<button type="button" class="eye" data-eye aria-label="Show password">${ic("eye")}</button>`:""}</div></label>`;
+const chp=(k,multi)=>`<div class="chips">${CH[k].map(([v,l])=>{const on=multi?SU.d[k].includes(v):SU.d[k]===v;return `<button type="button" data-pk="${k}" data-pv="${v}" aria-pressed="${on}" class="${on?"on":""}">${l}</button>`}).join("")}</div>`;
+const opts=(k,L)=>L.map(([v,t,s,ico])=>`<button type="button" class="opt ${SU.d[k]===v?"on":""}" aria-pressed="${SU.d[k]===v}" data-pk="${k}" data-pv="${v}">${ico?ic(ico):""}<span><b>${t}</b><small>${s}</small></span></button>`).join("");
+const PROFILE_STEPS=[
+  {title:"About you",note:"How old are you? Choose the gender setting for your estimates.",render:()=>`${fld("Age","age","calendar","number",'inputmode="numeric" min="10" max="90"')}<div class="auth-choice"><span>Gender</span>${chp("gender")}</div>`},
+  {title:"Body measurements",note:"These help set your starting targets.",render:()=>`<div class="g2">${fld("Height (cm)","height","ruler","number",'inputmode="decimal" min="100" max="230"')}${fld("Weight (kg)","weight","scale","number",'inputmode="decimal" step="0.1" min="25" max="250"')}</div>`},
+  {title:"Your goal",note:"Set a goal weight and choose what you want to focus on.",render:()=>`${fld("Goal weight (kg)","goalW","target","number",'inputmode="decimal" step="0.1" min="25" max="250"')}<div class="auth-choice"><span>Focus</span>${opts("goal",GOALS)}</div>`},
+  {title:"Your routine",note:"Pick the activity level and your current push-up range.",render:()=>`<div class="auth-choice"><span>Daily activity</span>${opts("act",ACTS)}</div><div class="auth-choice"><span>Push-ups in one go</span>${chp("push")}</div>`},
+  {title:"Training and food",note:"Choose the options that best describe you.",render:()=>`<div class="auth-choice"><span>Training experience</span>${chp("exp")}</div><div class="auth-choice"><span>Food preference</span>${chp("diet")}</div>`},
+  {title:"Any movement limits?",note:"Pick any areas that need extra care. You can also choose None.",render:()=>chp("lim",1)},
+  {title:"Choose your plan",note:"Your suggested level is based on your answers. You can change it later.",render:()=>{const rk=recLevel(SU.d);if(SU.d.plan===null)SU.d.plan=rk;const n=nutri(SU.d);return `<div class="kpi"><div class="st"><span class="mu">BMI</span><b>${n.bmi}</b></div><div class="st"><span class="mu">Calories</span><b>${n.kcal}</b></div><div class="st"><span class="mu">Protein</span><b>${n.pl}g+</b></div></div>${LV.map((k,i)=>`<button type="button" class="opt ${SU.d.plan===i?"on":""}" aria-pressed="${SU.d.plan===i}" data-pk="plan" data-pv="${i}"><span><b>${LVN[k]}</b><small>${LVD[k]}</small></span>${i===rk?'<span class="rec">Best fit</span>':""}<span class="free">Free</span></button>`).join("")}${SU.d.lim.some(x=>x!=="none")?`<p class="mu">You listed a limit. Skip any move that hurts, and see a doctor if pain continues.</p>`:""}`}}
+];
+const ACCOUNT_STEPS=4;
+const SIGNUP_STEPS=[
+  {title:"Your mobile number",note:"We’ll save this for contact only. Use your email to sign in.",render:()=>fld("Phone number","phone","","tel",'autocomplete="tel" inputmode="tel" maxlength="24"')},
+  {title:"Your name",note:"What should we call you?",render:()=>fld("Name","name","user","text",'autocomplete="name" maxlength="60"')},
+  {title:"Your email",note:"This will be your sign-in email.",render:()=>fld("Email","email","mail","email",'autocomplete="email"')},
+  {title:"Set a password",note:"Use at least 8 characters and make it hard to guess.",render:()=>fld("Password","password","lock","password",'autocomplete="new-password"',1)+`<div class="pwb" id="pwb"><i></i><i></i><i></i><i></i></div><div class="pwc" id="pwc">${PWL.map(x=>`<span>${x}</span>`).join("")}</div><p class="mu" id="pwt" style="margin:4px 0 12px"></p>`+fld("Confirm password","confirm","lock","password",'autocomplete="new-password"',1)}
+];
+const stepsFor=()=>AM==="setup"?PROFILE_STEPS:SIGNUP_STEPS.concat(PROFILE_STEPS);
 function authView(m){
   if(m){AM=m;if(m==="signup")SU={step:1,d:defD()}}
   document.body.classList.add("noauth");
-  const L=AM==="login",se=AM==="setup",st=L?0:SU.step,d=SU.d;let b="";
-  if(L)b=fld("Email","email","mail","email",'autocomplete="email"')+fld("Password","password","lock","password",'autocomplete="current-password"',1);
-  else if(st===1)b=fld("Name","name","user","text",'autocomplete="name" maxlength="60"')+fld("Email","email","mail","email",'autocomplete="email"')+fld("Password","password","lock","password",'autocomplete="new-password"',1)+`<div class="pwb" id="pwb"><i></i><i></i><i></i><i></i></div><div class="pwc" id="pwc">${PWL.map(x=>`<span>${x}</span>`).join("")}</div><p class="mu" id="pwt" style="margin:4px 0 12px"></p>`+fld("Confirm password","confirm","lock","password",'autocomplete="new-password"',1);
-  else if(st===2)b=`<h2>About your body</h2><p class="mu" style="margin-bottom:12px">Used only to set your food targets and starting level.</p><div class="mu" style="margin-bottom:6px">Gender</div>${chp("gender")}<div style="height:10px"></div><div class="g2">${fld("Age","age","calendar","number",'inputmode="numeric"')}${fld("Height (cm)","height","ruler","number",'inputmode="decimal"')}${fld("Weight (kg)","weight","scale","number",'inputmode="decimal" step="0.1"')}${fld("Goal weight (kg)","goalW","target","number",'inputmode="decimal" step="0.1"')}</div>`;
-  else if(st===3)b=`<h2>Your goal</h2><div style="height:8px"></div>${opts("goal",GOALS)}<h2 style="margin:14px 0 8px">Daily activity</h2>${opts("act",ACTS)}`;
-  else if(st===4)b=`<h2>Training level</h2><div class="mu" style="margin:6px 0 2px">Push-ups in one go (chest to the floor)</div>${chp("push")}<div class="mu" style="margin-top:10px">Experience</div>${chp("exp")}<div class="mu" style="margin-top:10px">Food</div>${chp("diet")}<div class="mu" style="margin-top:10px">Any pain or limits? Pick all that apply.</div>${chp("lim",1)}`;
-  else{const rk=recLevel(d);if(d.plan===null)d.plan=rk;const n=nutri(d);
-    b=`<h2>Your plan</h2><p class="mu" style="margin:2px 0 10px">Every plan is free. ${LVN[LV[rk]]} fits your answers best. You can switch any time.</p><div class="kpi"><div class="st"><span class="mu">BMI</span><b>${n.bmi}</b></div><div class="st"><span class="mu">Calories</span><b>${n.kcal}</b></div><div class="st"><span class="mu">Protein</span><b>${n.pl}g+</b></div></div>${LV.map((k,i)=>`<button type="button" class="opt ${d.plan===i?"on":""}" data-pk="plan" data-pv="${i}"><span><b>${LVN[k]}</b><small>${LVD[k]}</small></span>${i===rk?'<span class="rec">Best fit</span>':""}<span class="free">Free</span></button>`).join("")}${d.lim.some(x=>x!=="none")?`<p class="mu">You listed a limit. Skip any move that hurts, and see a doctor if pain continues.</p>`:""}`}
-  const last=st===5,back=st>(se?2:1)?`<button type="button" data-ob="back" style="flex:1">${ic("chevron-left")}Back</button>`:se&&S.profile?`<button type="button" data-ob="cancel" style="flex:1">Cancel</button>`:"";
-  const btn=L?`<button class="p" style="width:100%">Log in</button>`:`<div class="row" style="gap:8px">${back}<button class="p" style="flex:2">${last?(se?"Start training":"Create account"):"Next"}</button></div>`;
-  const stepNames=["Account","About you","Your goal","Training","Your plan"];
-  const sub=L?"Log in to continue your 8-week plan.":se?"Tell us about you so we can pick your plan.":st===1?"Create an account. It takes a minute, and everything is free.":"";
-  $("#app").innerHTML=`<div class="au fx"><h1>${ic("dumbbell")} Skinny to strong</h1><p class="mu auth-sub">${sub}</p>${!se&&st<2?`<div class="chips auth-tabs"><button type="button" data-au="login" aria-pressed="${L}" class="${L?"on":""}">Log in</button><button type="button" data-au="signup" aria-pressed="${!L}" class="${L?"":"on"}">Sign up</button></div>`:""}${st?`<div class="auth-progress" aria-label="Step ${st} of 5: ${stepNames[st-1]}"><span>Step ${st} of 5</span><b>${stepNames[st-1]}</b><div class="dots" aria-hidden="true">${[1,2,3,4,5].map(n=>`<i class="${n<=st?"on":""}"></i>`).join("")}</div></div>`:""}<form id="auf" class="card" autocomplete="on" novalidate>${b}<p id="aue" class="err" role="alert"></p>${btn}${st===1?'<p class="mu auth-note">The host of this app can see your training progress. Your password is never visible to anyone.</p>':""}</form></div>`;
-  if(st===1)pwUI(d.password)}
+  const L=AM==="login",se=AM==="setup",flow=L?[]:stepsFor(),st=L?0:SU.step,stage=L?null:flow[st-1],d=SU.d;
+  const b=L?fld("Email","email","mail","email",'autocomplete="email"')+fld("Password","password","lock","password",'autocomplete="current-password"',1):stage.render();
+  const last=!L&&st===flow.length,back=!L&&st>1?`<button type="button" data-ob="back" style="flex:1">${ic("chevron-left")}Back</button>`:se&&S.profile?`<button type="button" data-ob="cancel" style="flex:1">Cancel</button>`:"";
+  const btn=L?`<button class="p" style="width:100%">Log in</button>`:`<div class="row auth-actions" style="gap:8px">${back}<button class="p" style="flex:2">${last?(se?"Start training":"Create account"):"Next"}</button></div>`;
+  const tabs=!se&&(L||st===1),total=flow.length;
+  $("#app").innerHTML=`<div class="au fx"><h1 class="wordmark">HTF</h1>${tabs?`<div class="chips auth-tabs"><button type="button" data-au="login" aria-pressed="${L}" class="${L?"on":""}">Log in</button><button type="button" data-au="signup" aria-pressed="${!L}" class="${L?"":"on"}">Sign up</button></div>`:""}${!L?`<div class="auth-progress" aria-label="Step ${st} of ${total}: ${stage.title}"><span>Step ${st} of ${total}</span><b>${stage.title}</b><div class="dots" aria-hidden="true">${flow.map((_,i)=>`<i class="${i<st?"on":""}"></i>`).join("")}</div></div>`:""}<form id="auf" class="card" autocomplete="on" novalidate>${L?`<h2 class="auth-form-title">Log in</h2>`:`<div class="auth-question"><h2>${stage.title}</h2><p class="mu">${stage.note}</p></div>`}${b}<p id="aue" class="err" role="alert"></p>${btn}${!se&&st===1?'<p class="mu auth-note">The host can see your profile and training progress. Your password is never visible.</p>':""}</form></div>`;
+  if(AM==="signup"&&st===4)pwUI(d.password)}
 function stepErr(){const d=SU.d,st=SU.step,n=parseFloat;
-  if(st===1){if(!d.name.trim())return"Enter your name.";if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email.trim()))return"Enter a valid email address.";const c=pwChk(d.password);if(!c[0])return"Use at least 8 characters.";if(c.filter(Boolean).length<3)return"Make the password stronger: add upper case, a number or a symbol.";if(d.password!==d.confirm)return"The two passwords do not match."}
-  if(st===2){if(!(n(d.age)>=10&&n(d.age)<=90))return"Enter your age (10 to 90).";if(!(n(d.height)>=100&&n(d.height)<=230))return"Enter your height in cm (100 to 230).";if(!(n(d.weight)>=25&&n(d.weight)<=250))return"Enter your weight in kg.";if(!(n(d.goalW)>=25&&n(d.goalW)<=250))return"Enter your goal weight in kg."}
+  if(AM==="signup"){
+    if(st===1&&!/^\+?[\d\s().-]{7,24}$/.test(d.phone.trim()))return"Enter a valid phone number, including the country code if needed.";
+    if(st===2&&!d.name.trim())return"Enter your name.";
+    if(st===3&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email.trim()))return"Enter a valid email address.";
+    if(st===4){const c=pwChk(d.password);if(!c[0])return"Use at least 8 characters.";if(c.filter(Boolean).length<3)return"Make the password stronger: add upper case, a number or a symbol.";if(d.password!==d.confirm)return"The two passwords do not match."}
+  }
+  const pStep=AM==="setup"?st:st-ACCOUNT_STEPS;
+  if(pStep===1&&!(n(d.age)>=10&&n(d.age)<=90))return"Enter your age (10 to 90).";
+  if(pStep===2){if(!(n(d.height)>=100&&n(d.height)<=230))return"Enter your height in cm (100 to 230).";if(!(n(d.weight)>=25&&n(d.weight)<=250))return"Enter your weight in kg."}
+  if(pStep===3&&!(n(d.goalW)>=25&&n(d.goalW)<=250))return"Enter your goal weight in kg.";
   return""}
 document.addEventListener("click",e=>{
   const t=e.target;let b=t.closest("[data-au]");if(b){authView(b.dataset.au);return}
@@ -270,9 +288,9 @@ document.addEventListener("click",e=>{
   b=t.closest("[data-pk]");if(b){const k=b.dataset.pk,v=b.dataset.pv,d=SU.d;
     if(k==="lim"){let a=v==="none"?[]:d.lim.filter(x=>x!=="none");if(v!=="none")a=a.includes(v)?a.filter(x=>x!==v):[...a,v];d.lim=a.length?a:["none"]}
     else d[k]=k==="push"||k==="plan"?+v:v;
-    if(k!=="plan"&&SU.step===4)d.plan=null;authView();return}
+    if(k==="push"||k==="exp")d.plan=null;authView();return}
   b=t.closest("[data-ob]");if(b){if(b.dataset.ob==="back"){SU.step--;authView()}else{document.body.classList.remove("noauth");render()}return}
-  b=t.closest('[data-a="redo"]');if(b){SU={step:2,d:Object.assign(defD(),S.profile||{},{plan:S.profile?LV.indexOf(S.track):null})};authView("setup");scrollTo(0,0);return}
+  b=t.closest('[data-a="redo"]');if(b){SU={step:1,d:Object.assign(defD(),S.profile||{},{plan:S.profile?LV.indexOf(S.track):null})};authView("setup");scrollTo(0,0);return}
   // guided warm-up
   b=t.closest("button");if(!b)return;const q=b.dataset;
   if(q.wu!==undefined){wu=+q.wu;wx=-1;sdm();render()}
@@ -284,10 +302,10 @@ document.addEventListener("input",e=>{const k=e.target.dataset&&e.target.dataset
 document.addEventListener("submit",async e=>{if(e.target.id!=="auf")return;e.preventDefault();const err=$("#aue"),b=e.target.querySelector(".p"),d=SU.d;
   if(AM==="login"){b.disabled=true;b.textContent="Signing in…";b.setAttribute("aria-busy","true");try{const j=await api("POST","/api/login",{email:d.email,password:d.password});localStorage.setItem("bw-auth",JSON.stringify(j));location.reload()}catch(x){err.textContent=x.message;b.disabled=false;b.textContent="Log in";b.removeAttribute("aria-busy")}return}
   const m=stepErr();if(m){err.textContent=m;return}
-  if(SU.step<5){SU.step++;authView();scrollTo(0,0);return}
+  if(SU.step<stepsFor().length){SU.step++;authView();scrollTo(0,0);return}
   const P=prof();
   if(AM==="setup"){S.profile=P;S.track=P.plan;S.sk=LV.indexOf(P.plan);if(!S.bw.length||S.bw[S.bw.length-1].v!==P.weight)S.bw.push({d:Date.now(),v:P.weight});sv();document.body.classList.remove("noauth");tab="today";render();scrollTo(0,0);return}
-  b.disabled=true;b.textContent="Creating account…";b.setAttribute("aria-busy","true");try{const j=await api("POST","/api/signup",{name:d.name,email:d.email,password:d.password,profile:P});localStorage.setItem("bw-auth",JSON.stringify(j));location.reload()}catch(x){b.disabled=false;b.textContent="Create account";b.removeAttribute("aria-busy");if(/email/i.test(x.message)){SU.step=1;authView()}$("#aue").textContent=x.message}});
+  b.disabled=true;b.textContent="Creating account…";b.setAttribute("aria-busy","true");try{const j=await api("POST","/api/signup",{name:d.name,email:d.email,password:d.password,profile:P});localStorage.setItem("bw-auth",JSON.stringify(j));location.reload()}catch(x){b.disabled=false;b.textContent="Create account";b.removeAttribute("aria-busy");if(/email/i.test(x.message)){SU.step=3;authView()}$("#aue").textContent=x.message}});
 document.addEventListener("visibilitychange",()=>{if(document.hidden&&st){clearTimeout(st);st=null;push()}});
 async function boot(){
   if(!AU){authView();return}
@@ -295,7 +313,7 @@ async function boot(){
     if(j.state&&j.updated>(S._u||0)){Object.assign(S,j.state);S._u=j.updated;try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}}
     else if(!j.state||(S._u||0)>j.updated)push()}catch(e){}
   $("nav").innerHTML=[["today","dumbbell","Train"],["plan","list-checks","Plan"],["prog","trending-up","Progress"],...(AU.user.role==="admin"?[["admin","shield-check","Host"]]:[])].map(([t,i,l])=>`<button data-t="${t}">${ic(i)}<span>${l}</span></button>`).join("");
-  if(!S.profile&&AU.user.role!=="admin"){SU={step:2,d:defD()};authView("setup");return}
+  if(!S.profile&&AU.user.role!=="admin"){SU={step:1,d:defD()};authView("setup");return}
   document.body.classList.remove("noauth");render()}
 // Host dashboard
 let ADM,ADU=null;

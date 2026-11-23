@@ -62,6 +62,7 @@ The app has no frontend build step or frontend framework. Express serves the fil
 ## Accounts and saved data
 
 - Sign-up creates a user account and saves the initial profile and plan.
+- Sign-up asks for a mobile number as contact-only profile information. Email and password remain the sign-in credentials; phone-number login and SMS verification are not supported.
 - Passwords are stored as salted `scrypt` hashes; the original password is not stored.
 - Each user's tracker state is stored in SQLite and cached in that user's browser.
 - The host account can view users' training progress and profile details. Tell users about this access before they sign up.
