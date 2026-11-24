@@ -2,12 +2,21 @@
 
 A lightweight, mobile-friendly bodyweight training tracker. There are no accounts, passwords, or sign-in screens. A short first-run setup asks for age, weight, goals, and an exercise level; email and mobile number are optional.
 
+## Technology
+
+- React and Vite
+- Tailwind CSS
+- React Three Fiber and Drei
+- Three.js GLB animation
+- GSAP interface transitions
+
 ## What it includes
 
 - Five-exercise, three-session-per-week bodyweight plans, with warm-ups and rest timers.
 - Progress, bodyweight, push-up tests, and CSV export.
 - An adaptive coach that uses completed training sessions to suggest a level.
 - Optional exercise demos with a 2D fallback if the 3D library cannot load.
+- The push-up demo uses a bundled animated GLB model.
 - Automatic browser-local saving and a **Save now** action on the Plan page.
 
 ## Run locally
@@ -45,15 +54,25 @@ See [Privacy & Terms](public/legal.html) for details.
 
 ```text
 server.js           Static Express server
+index.html          Vite application entry
+src/
+  App.jsx           Tracker screens and application state
+  main.jsx          React bootstrap
+  index.css         Tailwind and app styles
+  components/
+    ExerciseScene.jsx React Three Fiber 3D scene
+  data/
+    training.js     Exercise and warm-up data
 public/
-  index.html        App shell
-  app.js            Tracker UI, workout logic, and local persistence
-  styles.css        Responsive styles and theme
   legal.html        Privacy notice and terms
-package.json        Runtime and start script
+  models/
+    push-up.glb     Animated 3D push-up demonstration
+package.json        Scripts and dependencies
+vite.config.js      Vite configuration
+tailwind.config.js  Tailwind configuration
 ```
 
-The app has no frontend build step or framework. The adaptive coach runs in the browser and does not send workout data to an external AI service. Opening a 3D exercise demo may load Three.js from cdnjs; profile and workout data are not included in that request.
+The app is a React single-page application built by Vite. Three.js assets and the push-up GLB are served locally. Express serves the generated `dist` directory in production and does not provide account or tracking APIs.
 
 ## Deploy
 
