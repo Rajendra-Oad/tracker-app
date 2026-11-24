@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { ContactShadows, Grid, OrbitControls, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 
-function PushUpModel({ exercise, playing, slow, speed, loop, restartKey, musclesVisible, cameraView, onTimeline, timelineSeek, selectedMuscle, isolationMode, explodedView }) {
+function PushUpModel({ exercise, playing, slow, speed, loop, restartKey, musclesVisible, cameraView, onTimeline, timelineSeek, selectedMuscle, isolationMode, explodedView, palette }) {
   const group = useRef();
   const { scene, animations } = useGLTF("/models/push-up.glb");
   const animationPhase = useRef(0);
@@ -149,10 +149,10 @@ function PushUpModel({ exercise, playing, slow, speed, loop, restartKey, muscles
                   ? /spine|core|shoulder|arm/
                   : /spine|leg|arm|shoulder/;
         const boneColors = {
-          primary: new THREE.Color("#FFD43B"),
-          secondary: new THREE.Color("#35D07F"),
-          stabilizing: new THREE.Color("#35C8FF"),
-          neutral: new THREE.Color("#c5a58f"),
+          primary: new THREE.Color(palette.primary),
+          secondary: new THREE.Color(palette.secondary),
+          stabilizing: new THREE.Color(palette.stabilizing),
+          neutral: new THREE.Color(palette.neutral),
         };
 
         for (let vertex = 0; vertex < child.geometry.attributes.position.count; vertex += 1) {
@@ -208,7 +208,7 @@ function PushUpModel({ exercise, playing, slow, speed, loop, restartKey, muscles
         metalness: 0,
         clearcoat: 0.08,
         clearcoatRoughness: 0.7,
-        emissive: new THREE.Color(musclesVisible ? "#ffd43b" : "#000000"),
+        emissive: new THREE.Color(musclesVisible ? palette.primary : "#000000"),
         emissiveIntensity: musclesVisible ? 0.12 : 0,
         transparent: isolationMode && selectedMuscle ? true : false,
         opacity: isolationMode && selectedMuscle ? 0.62 : 1,
@@ -228,7 +228,7 @@ function PushUpModel({ exercise, playing, slow, speed, loop, restartKey, muscles
     const scaledBox = new THREE.Box3().setFromObject(scene);
     const groundHeight = -0.74;
     scene.position.y += groundHeight - scaledBox.min.y;
-  }, [scene, exercise, musclesVisible, selectedMuscle, isolationMode]);
+  }, [scene, exercise, musclesVisible, selectedMuscle, isolationMode, palette]);
 
   return <primitive ref={group} object={scene} position={[0, 0, 0]} />;
 }
@@ -279,8 +279,12 @@ function CameraRig({ cameraView, selectedMuscle, autoTrack }) {
   return null;
 }
 
-export default function ExerciseScene({ exercise, playing, slow, speed = 1, loop = true, restartKey = 0, musclesVisible = true, cameraView = "front", onTimeline, autoRotate = false, resetCameraKey = 0, timelineSeek = null, selectedMuscle = null, isolationMode = false, explodedView = false, autoTrack = false }) {
+export default function ExerciseScene({ exercise, theme = "dark", playing, slow, speed = 1, loop = true, restartKey = 0, musclesVisible = true, cameraView = "front", onTimeline, autoRotate = false, resetCameraKey = 0, timelineSeek = null, selectedMuscle = null, isolationMode = false, explodedView = false, autoTrack = false }) {
   const controls = useRef();
+  const palette = useMemo(() => theme === "light"
+    ? { primary: "#404040", secondary: "#737373", stabilizing: "#a3a3a3", neutral: "#d4d4d4", floor: "#e5e5e5", grid: "#d4d4d4", gridSection: "#737373" }
+    : { primary: "#f5f5f5", secondary: "#a3a3a3", stabilizing: "#525252", neutral: "#737373", floor: "#171717", grid: "#373737", gridSection: "#737373" },
+  [theme]);
   const cameraPositions = {
     front: [3.2, 2.1, 4.2],
     back: [-3.2, 2.1, -4.2],
@@ -301,18 +305,17 @@ export default function ExerciseScene({ exercise, playing, slow, speed = 1, loop
       aria-label={`${exercise} 3D demonstration`}
     >
       <CameraRig cameraView={cameraView} selectedMuscle={selectedMuscle} autoTrack={autoTrack} />
-      <color attach="background" args={["#b9cbd1"]} />
-      <hemisphereLight intensity={1.2} groundColor="#5a666a" />
+      <hemisphereLight intensity={1.2} groundColor={palette.gridSection} />
       <directionalLight position={[3, 5, 4]} intensity={1.3} />
-      <directionalLight position={[-4, 2, -3]} intensity={0.5} color="#a7dbe4" />
+      <directionalLight position={[-4, 2, -3]} intensity={0.5} color="#ffffff" />
       <Suspense fallback={null}>
-        <PushUpModel exercise={exercise} playing={playing} slow={slow} speed={speed} loop={loop} restartKey={restartKey} musclesVisible={musclesVisible} cameraView={cameraView} onTimeline={onTimeline} timelineSeek={timelineSeek} selectedMuscle={selectedMuscle} isolationMode={isolationMode} explodedView={explodedView} />
+        <PushUpModel exercise={exercise} playing={playing} slow={slow} speed={speed} loop={loop} restartKey={restartKey} musclesVisible={musclesVisible} cameraView={cameraView} onTimeline={onTimeline} timelineSeek={timelineSeek} selectedMuscle={selectedMuscle} isolationMode={isolationMode} explodedView={explodedView} palette={palette} />
       </Suspense>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.741, 0]} receiveShadow>
         <circleGeometry args={[2.35, 64]} />
-        <meshStandardMaterial color="#252b2d" roughness={0.88} metalness={0.02} />
+        <meshStandardMaterial color={palette.floor} roughness={0.88} metalness={0.02} />
       </mesh>
-      <Grid position={[0, -0.738, 0]} args={[5, 5]} cellColor="#46585c" sectionColor="#64787d" fadeDistance={5.5} fadeStrength={1} />
+      <Grid position={[0, -0.738, 0]} args={[5, 5]} cellColor={palette.grid} sectionColor={palette.gridSection} fadeDistance={5.5} fadeStrength={1} />
       <ContactShadows position={[0, -0.735, 0]} opacity={0.48} scale={3.2} blur={2.2} far={1.4} color="#07090a" />
       <OrbitControls ref={controls} makeDefault enablePan={false} enableRotate minDistance={3} maxDistance={7} autoRotate={autoRotate} autoRotateSpeed={1.1} />
     </Canvas>
