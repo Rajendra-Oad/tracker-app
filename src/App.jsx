@@ -1,304 +1,18 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { EXERCISES, WARMUPS } from "./data/training";
+import { ProfileSetup } from "./components/onboarding/ProfileSetup";
+import { Nav, ProfileTrigger } from "./components/navigation/AppNavigation";
+import { Icon } from "./components/ui/Icon";
+import { HTFPreloader } from "./components/ui/HTFPreloader";
+import { PlanGenerationScreen } from "./components/onboarding/PlanGenerationScreen";
+import { hasCachedCriticalAssets, preloadCriticalAssets } from "./services/assetPreloader";
+import { BODY_PARTS, dateKey, exercisesForBodyPart, formatElapsedTime, getGreeting, getSuggestedDay, getWeekNumber, LEVEL_NAMES, matchesBodyPart, startOfWeek } from "./features/dashboard/utils/dashboardUtils";
 
-const ExerciseScene = lazy(() => import("./components/ExerciseScene"));
+const ExerciseScene = lazy(() => import("./features/exercise/three/ExerciseScene"));
 
-const STORAGE_KEY = "bw-tracker-v1";
-const LEVELS = ["A", "B", "C", "D"];
-const LEVEL_NAMES = { A: "Beginner", B: "Intermediate", C: "Advanced", D: "Ultra" };
-const BODY_PARTS = [
-  { name: "Arms", keywords: ["biceps", "triceps", "forearm", "grip"] },
-  { name: "Back", keywords: ["back", "lat", "rhomboid", "trapezius", "erector"] },
-  { name: "Chest", keywords: ["chest", "pectoral"] },
-  { name: "Core", keywords: ["core", "ab", "oblique", "hip flexor"] },
-  { name: "Legs", keywords: ["quad", "glute", "hamstring", "calf", "soleus", "leg"] },
-  { name: "Shoulders", keywords: ["shoulder", "deltoid", "rotator cuff", "traps"] },
-];
-const defaultState = {
-  profile: null,
-  profileDraft: null,
-  profileStep: 1,
-  theme: "system",
-  week: 1,
-  track: "A",
-  done: 0,
-  sets: {},
-  sd: {},
-  log: [],
-  hist: [],
-  bw: [],
-  warm: [],
-  start: null,
-};
+import { defaultState, LEGACY_STORAGE_KEY, loadState, STORAGE_KEY, STORAGE_VERSION } from "./app/appState";
 
-function loadState() {
-  try {
-    return { ...defaultState, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") };
-  } catch {
-    return defaultState;
-  }
-}
-
-function Icon({ name, size = 20 }) {
-  const paths = {
-    dumbbell: <><path d="M6.5 7.5v9M3.5 9.5v5M17.5 7.5v9M20.5 9.5v5M6.5 12h11" /></>,
-    checks: <><rect x="3" y="3" width="18" height="18" rx="4" /><path d="m7.5 12 3 3 6-7" /></>,
-    trend: <><path d="M4 18V9M10 18V5M16 18v-6M22 18V3" /><path d="M2 21h20" /></>,
-    play: <path d="m8.5 5.5 9 6.5-9 6.5Z" />,
-    pause: <><path d="M9 6v12M15 6v12" /></>,
-    left: <path d="m14.5 5-7 7 7 7" />,
-    right: <path d="m9.5 5 7 7-7 7" />,
-    user: <><circle cx="12" cy="8" r="3.5" /><path d="M5 20c.6-3.1 3.2-5 7-5s6.4 1.9 7 5" /></>,
-    close: <path d="m6 6 12 12M18 6 6 18" />,
-    check: <path d="m5 12 4.5 4.5L19 7" />,
-    slow: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3 2" /></>,
-  };
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name] || null}</svg>;
-}
-
-function ProfileSetup({ state, setState, onCancel, onComplete, nameOnly = false }) {
-  const [step, setStep] = useState(nameOnly ? 1 : state.profileStep || 1);
-  const [draft, setDraft] = useState({
-    name: state.profile?.name || "",
-    gender: state.profile?.gender || "male",
-    frequency: String(state.profile?.frequency || 3),
-    objective: state.profile?.objective || "muscle",
-    age: String(state.profile?.age || 25),
-    height: String(state.profile?.height || 175),
-    weight: String(state.profile?.weight || 70),
-    goalW: String(state.profile?.goalW || 75),
-    goal: state.profile?.goal || "gain",
-    plan: 0,
-    ...(state.profileDraft || {}),
-    name: typeof state.profileDraft?.name === "string" ? state.profileDraft.name : state.profile?.name || "",
-  });
-  const [error, setError] = useState("");
-  const [direction, setDirection] = useState("forward");
-
-  const next = (event) => {
-    event.preventEvent?.();
-    event.preventDefault();
-    if (step === 1 && !draft.name.trim()) {
-      setError("Enter your name to continue.");
-      return;
-    }
-    if (nameOnly) {
-      setState((value) => ({
-        ...value,
-        profile: value.profile ? { ...value.profile, name: draft.name.trim() } : value.profile,
-        profileDraft: null,
-        profileStep: null,
-      }));
-      onComplete?.();
-      return;
-    }
-    if (step === 4 && (!(+draft.age >= 10 && +draft.age <= 90) || !(+draft.height >= 120 && +draft.height <= 220))) {
-      setError("Choose a valid age and height.");
-      return;
-    }
-    if (step === 5 && (!(+draft.weight >= 25 && +draft.weight <= 250) || !(+draft.goalW >= 25 && +draft.goalW <= 250))) {
-      setError("Choose a valid current and goal weight.");
-      return;
-    }
-    setError("");
-    if (step < 6) {
-      const nextStep = step + 1;
-      setDirection("forward");
-      setStep(nextStep);
-      setState((value) => ({ ...value, profileStep: nextStep, profileDraft: draft }));
-      return;
-    }
-    const profile = {
-      name: draft.name.trim(),
-      age: +draft.age,
-      weight: +draft.weight,
-      goalW: +draft.goalW,
-      goal: draft.goal,
-      gender: draft.gender,
-      frequency: +draft.frequency,
-      objective: draft.objective,
-      height: +draft.height,
-      planStartedAt: state.profile?.planStartedAt || Date.now(),
-    };
-    setState((value) => ({
-      ...value,
-      profile,
-      track: LEVELS[draft.plan],
-      profileDraft: null,
-      profileStep: null,
-    }));
-    onComplete?.();
-  };
-
-  const titles = ["What should we call you?", "Training rhythm", "Your focus", "Basic details", "Your weight", "Exercise level"];
-  const ruler = (label, key, min, max, unit, step = 1) => (
-    <label className="ruler-field">
-      <span>{label}</span>
-      <b><span className="ruler-value" key={draft[key]}>{draft[key]}</span> <small>{unit}</small></b>
-      <div className="ruler-control" style={{ "--ruler-offset": `${-(((+draft[key] - min) / step) * 10 + 5)}px` }}>
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={draft[key]}
-          onChange={(event) => setDraft((value) => ({ ...value, [key]: event.target.value }))}
-        />
-        <div className="ruler-ticks" aria-hidden="true">
-          <div className="ruler-ticks-static">{[0, 1, 2, 3, 4, 5, 6, 7, 8].map((tick) => <i key={tick} />)}</div>
-          <div className="ruler-tick-track">
-            {Array.from({ length: Math.floor((max - min) / step) + 1 }, (_, index) => {
-              const mark = min + index * step;
-              const major = mark % 10 === 0;
-              return <i className={major ? "ruler-tick major" : "ruler-tick"} data-value={major ? mark : undefined} key={mark} />;
-            })}
-          </div>
-          <i className="ruler-marker" />
-        </div>
-      </div>
-    </label>
-  );
-
-  return (
-    <main className="setup-shell">
-      <section className={`setup-card setup-step-${step}`}>
-        <div className="setup-topbar">
-          {step > 1 ? <button type="button" className="setup-back" onClick={() => {
-            setDirection("back");
-            setStep((value) => value - 1);
-          }}>Back</button> : <span />}
-          <div className="brand">HTF</div>
-          <span className="setup-count">{nameOnly ? "Profile" : `${step}/6`}</span>
-        </div>
-        {!nameOnly && <div className="progress-dots" role="progressbar" aria-label={`Setup progress, step ${step} of 6`} aria-valuemin={1} aria-valuemax={6} aria-valuenow={step}>{[1, 2, 3, 4, 5, 6].map((item) => <i key={item} className={item <= step ? "on" : ""} />)}</div>}
-        <form onSubmit={next} className={`setup-form slide-${direction}${nameOnly ? " setup-name-only" : ""}`} key={step}>
-          <div className="setup-heading">
-            <span>Personalize your plan</span>
-            <h1>{titles[step - 1]}</h1>
-          </div>
-          {step === 1 && <label className="setup-name-field">
-            <span>Your name</span>
-            <input
-              type="text"
-              name="name"
-              autoComplete="given-name"
-              maxLength={40}
-              placeholder="e.g. Raj"
-              value={draft.name}
-              onChange={(event) => { setError(""); setDraft((item) => ({ ...item, name: event.target.value })); }}
-            />
-            <small>We'll use this name in your Train greeting.</small>
-          </label>}
-          {step === 1 && !nameOnly && <section className="gender-selection" aria-labelledby="gender-heading">
-            <h2 id="gender-heading">Gender</h2>
-            <div className="gender-grid">
-              {[["male", "Male", "/man_model.webp"], ["female", "Female", "/female_model.webp"]].map(([value, label, image]) =>
-                <button type="button" key={value} className={draft.gender === value ? "gender-card on" : "gender-card"} onClick={() => setDraft((item) => ({ ...item, gender: value }))}>
-                  <span className={`gender-figure ${value}`} aria-hidden="true"><img src={image} alt="" /></span>
-                  <strong>{label}</strong>
-                </button>)}
-            </div>
-          </section>}
-          {step === 2 && <div className="choice-grid">
-            {[["3", "3 sessions a week"], ["4", "4 sessions a week"], ["5", "5 sessions a week"], ["6", "6 sessions a week"]].map(([value, label]) =>
-              <button type="button" key={value} className={draft.frequency === value ? "choice on" : "choice"} onClick={() => setDraft((item) => ({ ...item, frequency: value }))}><b>{label}</b></button>)}
-          </div>}
-          {step === 3 && <div className="focus-grid">
-            {[["muscle", "Build muscle", "Strength and size"], ["fat-loss", "Burn fat", "Lean and athletic"], ["strength", "Get stronger", "Power and performance"], ["fitness", "Improve fitness", "Move and feel better"]].map(([value, title, copy]) =>
-              <button type="button" key={value} className={draft.objective === value ? "choice focus-choice on" : "choice focus-choice"} onClick={() => setDraft((item) => ({ ...item, objective: value }))}><b>{title}</b><small>{copy}</small></button>)}
-          </div>}
-          {step === 4 && <div className="ruler-stack">
-            {ruler("Age", "age", 10, 90, "years")}
-            {ruler("Height", "height", 120, 220, "cm")}
-          </div>}
-          {step === 5 && <div className="ruler-stack">
-            {ruler("Current weight", "weight", 25, 250, "kg")}
-            {ruler("Goal weight", "goalW", 25, 250, "kg")}
-          </div>}
-          {step === 6 && <div className="choice-grid">
-            {LEVELS.map((level, index) => <button type="button" key={level} className={draft.plan === index ? "choice on" : "choice"} onClick={() => setDraft((item) => ({ ...item, plan: index }))}>
-              <b>{LEVEL_NAMES[level]}</b><small>{["Table and chair versions", "Floor work", "Advanced variations", "Hardest variations"][index]}</small>
-            </button>)}
-          </div>}
-          {error && <p className="error">{error}</p>}
-          <div className={`row gap setup-actions${step === 1 && state.profile && !nameOnly ? " setup-actions-with-cancel" : ""}`}>
-            {step === 1 && state.profile && !nameOnly ? <button type="button" className="secondary" onClick={onCancel}>Cancel</button> : null}
-            <button className="primary setup-next" type="submit">{nameOnly ? "Save name" : step === 6 ? "Create my plan" : "Continue"}<span aria-hidden="true">→</span></button>
-          </div>
-        </form>
-      </section>
-    </main>
-  );
-}
-
-function Nav({ tab, setTab, onOpenProfile, profileOpen }) {
-  const items = [
-    ["today", "dumbbell", "Train"],
-    ["plan", "checks", "Plan"],
-    ["progress", "trend", "Progress"],
-    ["profile", "user", "Profile"],
-  ];
-
-  return <nav className="bottom-nav" aria-label="Primary navigation">
-    {items.map(([value, icon, label]) => {
-      const active = value === "profile" ? profileOpen : tab === value;
-      return (
-        <button
-          key={value}
-          type="button"
-          className={`${active ? "on" : ""}${value === "profile" ? " mobile-nav-profile" : ""}`}
-          aria-label={label}
-          aria-current={active ? "page" : undefined}
-          onClick={() => value === "profile" ? onOpenProfile() : setTab(value)}
-        >
-          <Icon name={icon} />
-          <span>{label}</span>
-        </button>
-      );
-    })}
-  </nav>;
-}
-
-function startOfWeek(date) {
-  const value = new Date(date);
-  value.setHours(0, 0, 0, 0);
-  value.setDate(value.getDate() - ((value.getDay() + 6) % 7));
-  return value;
-}
-
-function dateKey(date) {
-  const value = new Date(date);
-  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
-}
-
-function matchesBodyPart(part, muscle) {
-  const value = muscle.toLowerCase();
-  return part.keywords.some((keyword) => value.includes(keyword));
-}
-
-function exercisesForBodyPart(part) {
-  return EXERCISES.map((exercise, index) => ({ exercise, index }))
-    .filter(({ exercise }) => exercise.muscles.some((muscle) => matchesBodyPart(part, muscle)));
-}
-
-function getWeekNumber(startedAt) {
-  const start = startOfWeek(startedAt);
-  const current = startOfWeek(new Date());
-  const startUtc = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
-  const currentUtc = Date.UTC(current.getFullYear(), current.getMonth(), current.getDate());
-  return Math.max(1, Math.floor((currentUtc - startUtc) / 604800000) + 1);
-}
-
-function getSuggestedDay(index, target) {
-  const daySets = {
-    3: [0, 2, 4],
-    4: [0, 2, 4, 6],
-    5: [0, 1, 3, 5, 6],
-    6: [0, 1, 2, 4, 5, 6],
-  };
-  return (daySets[target] || daySets[3])[index] ?? 6;
-}
 
 function WeekOverview({ log, target, weekNumber }) {
   const firstDay = startOfWeek(new Date());
@@ -330,39 +44,61 @@ function WeekOverview({ log, target, weekNumber }) {
   );
 }
 
-function ProgressCharts({ log }) {
+function buildSmoothPath(points) {
+  if (!points.length) return "";
+  if (points.length === 1) return `M ${points[0][0]} ${points[0][1]}`;
+  return points.reduce((path, point, index) => {
+    if (index === 0) return `M ${point[0]} ${point[1]}`;
+    const previous = points[index - 1];
+    const midpoint = (previous[0] + point[0]) / 2;
+    return `${path} C ${midpoint} ${previous[1]}, ${midpoint} ${point[1]}, ${point[0]} ${point[1]}`;
+  }, "");
+}
+
+function ProgressCharts({ log, startedAt, onStartWorkout }) {
+  const validLog = log.filter((entry) => Number.isFinite(new Date(entry.d).getTime()));
+  const hasHistory = validLog.length > 0;
+  const journeyStart = startOfWeek(startedAt || validLog[0]?.d || new Date());
   const currentMonday = startOfWeek(new Date());
-  const weeks = Array.from({ length: 6 }, (_, index) => {
-    const start = new Date(currentMonday);
-    start.setDate(start.getDate() - (5 - index) * 7);
+  const availableWeeks = Math.max(1, Math.floor((currentMonday - journeyStart) / 604800000) + 1);
+  const weekCount = Math.min(6, availableWeeks);
+  const chartStart = new Date(currentMonday);
+  chartStart.setDate(chartStart.getDate() - (weekCount - 1) * 7);
+  const weeks = Array.from({ length: weekCount }, (_, index) => {
+    const start = new Date(chartStart);
+    start.setDate(start.getDate() + index * 7);
     const end = new Date(start);
     end.setDate(end.getDate() + 7);
-    return {
-      start,
-      count: log.filter((entry) => new Date(entry.d) >= start && new Date(entry.d) < end).length,
-    };
+    return { start, count: validLog.filter((entry) => new Date(entry.d) >= start && new Date(entry.d) < end).length };
   });
-  const max = Math.max(3, ...weeks.map((week) => week.count));
-  const points = weeks.map((week, index) => `${24 + index * 52},${104 - (week.count / max) * 78}`).join(" ");
+  const maxCount = Math.max(1, ...weeks.map((week) => week.count));
+  const scaleMax = Math.max(3, Math.ceil(maxCount / 3) * 3);
+  const chart = { left: 42, right: 344, top: 18, bottom: 142 };
+  const xStep = weeks.length > 1 ? (chart.right - chart.left) / (weeks.length - 1) : 0;
+  const points = weeks.map((week, index) => [chart.left + index * xStep, chart.bottom - (week.count / scaleMax) * (chart.bottom - chart.top)]);
+  const linePath = buildSmoothPath(points);
+  const areaPath = points.length ? `${linePath} L ${points[points.length - 1][0]} ${chart.bottom} L ${points[0][0]} ${chart.bottom} Z` : "";
   const muscles = new Map();
-  log.forEach((entry) => (entry.muscles || []).forEach((muscle) => muscles.set(muscle, (muscles.get(muscle) || 0) + 1)));
+  validLog.forEach((entry) => (entry.muscles || []).forEach((muscle) => muscles.set(muscle, (muscles.get(muscle) || 0) + 1)));
   const focus = [...muscles.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   const maxFocus = Math.max(1, ...focus.map(([, count]) => count));
 
   return (
     <>
-      <section className="progress-chart">
+      <section className={`progress-chart ${!hasHistory ? "progress-chart-empty" : ""}`}>
         <div className="progress-chart-head"><h2>Workout consistency</h2><span>Sessions per week</span></div>
-        <svg viewBox="0 0 300 128" role="img" aria-label="Completed workouts per week for the last six weeks">
-          {[0, 1, 2].map((line) => <line key={line} x1="20" x2="280" y1={25 + line * 38} y2={25 + line * 38} />)}
-          <polyline points={points} />
-          {weeks.map((week, index) => {
-            const x = 24 + index * 52;
-            const y = 104 - (week.count / max) * 78;
-            return <g key={week.start.toISOString()}><circle cx={x} cy={y} r="4" /><text x={x} y="123">{week.start.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</text><title>{week.count} sessions</title></g>;
-          })}
-        </svg>
-        <div className="chart-caption">{log.length ? `${log.length} completed workout${log.length === 1 ? "" : "s"} recorded` : "Complete a workout to start your trend."}</div>
+        {!hasHistory ? (
+          <div className="chart-empty-state"><div className="chart-empty-illustration" aria-hidden="true"><span /><span /><span /></div><strong>Your fitness journey starts here</strong><p>Complete your first workout to see your progress.</p><button type="button" className="chart-start-button" onClick={onStartWorkout}>Start workout →</button></div>
+        ) : (
+          <svg viewBox="0 0 370 176" role="img" aria-label={`Completed workouts per week from ${weeks[0].start.toLocaleDateString(undefined, { month: "short", day: "numeric" })} to now`}>
+            <defs><linearGradient id="activity-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="var(--accent)" stopOpacity=".26" /><stop offset="1" stopColor="var(--accent)" stopOpacity="0" /></linearGradient></defs>
+            {[0, 1, 2, 3].map((step) => { const y = chart.bottom - (step / 3) * (chart.bottom - chart.top); const label = Math.round((scaleMax / 3) * step); return <g key={step}><line x1={chart.left} x2={chart.right} y1={y} y2={y} /><text className="chart-y-label" x="3" y={y + 3}>{label}</text></g>; })}
+            <path className="progress-chart-area" d={areaPath} />
+            <path className="progress-chart-line" d={linePath} />
+            {weeks.map((week, index) => { const [x, y] = points[index]; return <g key={week.start.toISOString()}><circle cx={x} cy={y} r="3.5" /><text x={x} y="166">{week.start.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</text><title>{week.count} session{week.count === 1 ? "" : "s"}</title></g>; })}
+          </svg>
+        )}
+        {hasHistory && <div className="chart-caption">{validLog.length} completed workout{validLog.length === 1 ? "" : "s"} recorded</div>}
       </section>
       <section className="muscle-progress">
         <div className="progress-chart-head"><h2>Training focus</h2><span>By completed exercises</span></div>
@@ -371,25 +107,22 @@ function ProgressCharts({ log }) {
             <div><span>{muscle}</span><b>{count} session{count === 1 ? "" : "s"}</b></div>
             <i><span style={{ width: `${(count / maxFocus) * 100}%` }} /></i>
           </div>
-        )) : <p className="muted">Muscle groups will appear here after you complete and log exercise sets.</p>}
+        )) : <p className="muted mt-3">Muscle groups will appear here after you complete and log exercise sets.</p>}
         <p className="chart-note">Training focus reflects logged exercises; it is not a measurement of muscle growth.</p>
       </section>
     </>
   );
 }
 
-function getGreeting(name) {
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const firstName = name?.trim().split(/\s+/)[0];
-  return firstName ? `${greeting}, ${firstName}` : greeting;
-}
 
 function MobileTrainDashboard({ state, log, target, weekNumber, activeSession, onOpenProfile, onOpenSession, onOpenBodyPart, onManagePlan }) {
   const firstDay = startOfWeek(new Date());
   const todayIndex = (new Date().getDay() + 6) % 7;
-  const [selectedDay, setSelectedDay] = useState(() => state.start ? getSuggestedDay(activeSession, target) : todayIndex);
+  const [selectedDay, setSelectedDay] = useState(todayIndex);
+  const [showYearSummary, setShowYearSummary] = useState(false);
   const weekEntries = log.filter((entry) => new Date(entry.d) >= firstDay);
+  const currentYear = new Date().getFullYear();
+  const yearEntries = log.filter((entry) => new Date(entry.d).getFullYear() === currentYear);
   const scheduledSession = Array.from({ length: target }, (_, index) => index)
     .find((index) => getSuggestedDay(index, target) === selectedDay);
   const selectedDate = new Date(firstDay);
@@ -423,12 +156,10 @@ function MobileTrainDashboard({ state, log, target, weekNumber, activeSession, o
 
   return (
     <main className="app-shell mobile-dashboard">
-      <header className="mobile-home-header">
-        <div><span className="mobile-greeting">{getGreeting(state.profile?.name)}</span><h1>Train</h1></div>
-        <button type="button" className="mobile-profile-trigger" aria-label={`Open ${state.profile?.name ? `${state.profile.name}'s profile` : "profile"}`} onClick={onOpenProfile}>
-          <span aria-hidden="true">{profileInitials || <Icon name="user" size={22} />}</span>
-        </button>
+      <header className="page-head mobile-home-header">
+        <div className="mobile-title-row"><h1>Train</h1><ProfileTrigger profile={state.profile} onOpen={onOpenProfile} /></div>
       </header>
+      <div className="mobile-greeting-block"><span className="mobile-greeting">{getGreeting(state.profile?.name)}</span></div>
 
       <section className="mobile-week-card" aria-label="Weekly training summary">
         <div className="mobile-week-stats">
@@ -437,8 +168,9 @@ function MobileTrainDashboard({ state, log, target, weekNumber, activeSession, o
         </div>
         <div className="mobile-week-days" aria-label="Select a training day">
           {days.map(({ date, key, index, completed, planned }) => (
-            <button type="button" key={key} className={`mobile-week-day ${selectedDay === index ? "selected" : ""} ${completed ? "completed" : ""} ${planned ? "planned" : ""}`}
+            <button type="button" key={key} className={`mobile-week-day ${selectedDay === index ? "selected" : ""} ${index === todayIndex ? "today" : ""} ${completed ? "completed" : ""} ${planned ? "planned" : ""}`}
               aria-pressed={selectedDay === index}
+              aria-current={index === todayIndex ? "date" : undefined}
               aria-label={`${date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}${planned ? ", scheduled session" : ""}${completed ? ", workout complete" : ""}`}
               onClick={() => setSelectedDay(index)}>
               <span>{date.toLocaleDateString(undefined, { weekday: "narrow" })}</span>
@@ -449,32 +181,29 @@ function MobileTrainDashboard({ state, log, target, weekNumber, activeSession, o
         </div>
         <div className="mobile-muscle-mix">
           <div className="mobile-section-heading"><h2>Muscle mix</h2><span>{mixTotal ? "This week" : "No sessions yet"}</span></div>
-          <div className="mobile-muscle-progress-list">
-            {mix.map((part) => {
-              const percentage = mixTotal ? Math.round((part.count / mixTotal) * 100) : 0;
-              return (
-                <div className="mobile-muscle-progress-row" key={part.name}>
-                  <div className="mobile-muscle-progress-label">
-                    <strong><i aria-hidden="true" data-tone={part.name.toLowerCase()} />{part.name}</strong>
-                    <span>{part.count} {part.count === 1 ? "session" : "sessions"}</span>
-                    <b>{percentage}%</b>
-                  </div>
-                  <div
-                    className="mobile-muscle-track"
-                    role="progressbar"
-                    aria-label={`${part.name} share of this week's muscle mix`}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={percentage}
-                    aria-valuetext={`${part.count} ${part.count === 1 ? "session" : "sessions"}, ${percentage}%`}
-                  >
-                    <i data-tone={part.name.toLowerCase()} style={{ width: `${percentage}%` }} />
-                  </div>
-                </div>
-              );
-            })}
+          <div className="mobile-muscle-progress" role="progressbar" aria-label="This week's muscle mix" aria-valuemin={0} aria-valuemax={100} aria-valuenow={mixTotal ? 100 : 0}>
+            <div className="mobile-muscle-track">
+              {mix.map((part) => {
+                const percentage = mixTotal ? Math.round((part.count / mixTotal) * 100) : 0;
+                return <i key={part.name} data-tone={part.name.toLowerCase()} style={{ width: `${percentage}%` }} aria-hidden="true" />;
+              })}
+            </div>
+            <div className="mobile-muscle-legend">
+              {mix.map((part) => {
+                const percentage = mixTotal ? Math.round((part.count / mixTotal) * 100) : 0;
+                return <span key={part.name}><i aria-hidden="true" data-tone={part.name.toLowerCase()} />{part.name} <b>{percentage}%</b></span>;
+              })}
+            </div>
           </div>
-          {!mixTotal && <p className="mobile-empty-mix">Complete a workout this week to build your muscle mix.</p>}
+          {!mixTotal && (
+            <div className="mobile-empty-mix">
+              <p>{yearEntries.length ? `${yearEntries.length} workout${yearEntries.length === 1 ? "" : "s"} completed this year.` : "No workouts recorded this week yet."}</p>
+              <button type="button" className="mobile-year-summary-toggle" aria-expanded={showYearSummary} onClick={() => setShowYearSummary((value) => !value)}>
+                {showYearSummary ? "Hide yearly activity" : "View this year's activity"} <Icon name="right" size={14} />
+              </button>
+              {showYearSummary && <div className="mobile-year-summary" aria-label="This year's workout summary"><strong>{yearEntries.length}</strong><span>workout{yearEntries.length === 1 ? "" : "s"} completed in {currentYear}</span></div>}
+            </div>
+          )}
         </div>
       </section>
 
@@ -541,12 +270,6 @@ function MobileSessionExercises({ title, subtitle, exercises, onBack, onOpenExer
   );
 }
 
-function formatElapsedTime(seconds) {
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
-}
-
 function MobileExercisePlayer({ exercise, exerciseIndex, sessionNumber, theme, running, elapsed, setIndex, sets, onBack, onToggleTimer, onResetTimer, onCompleteSet, onTimeline }) {
   const completedSets = [0, 1, 2].filter((index) => sets[`${exerciseIndex}-${index}`]);
   const isComplete = completedSets.length === 3;
@@ -568,8 +291,14 @@ function MobileExercisePlayer({ exercise, exerciseIndex, sessionNumber, theme, r
         <div className="mobile-player-target"><span>{exercise.variation}</span><strong>Target · {exercise.target}</strong></div>
         <div className="mobile-timer" role="timer" aria-label={`Elapsed time ${formatElapsedTime(elapsed)}`} aria-live="off">{formatElapsedTime(elapsed)}</div>
         <p>{exercise.description}</p>
-        <div className="mobile-set-progress" aria-label={`${completedSets.length} of 3 sets completed`}>
-          {[0, 1, 2].map((index) => <i className={sets[`${exerciseIndex}-${index}`] ? "done" : ""} key={index} />)}
+        <div className="mobile-set-progress" role="progressbar" aria-label={`${completedSets.length} of 3 sets completed`} aria-valuemin="0" aria-valuemax="3" aria-valuenow={completedSets.length}>
+          <div className="mobile-set-progress-label">
+            <span>Set progress</span>
+            <strong>{completedSets.length} of 3 complete</strong>
+          </div>
+          <div className="mobile-set-progress-track">
+            <i style={{ width: `${(completedSets.length / 3) * 100}%` }} />
+          </div>
         </div>
         {isComplete ? (
           <div className="mobile-set-complete">
@@ -583,6 +312,62 @@ function MobileExercisePlayer({ exercise, exerciseIndex, sessionNumber, theme, r
             <button type="button" className="mobile-complete-set" onClick={onCompleteSet}>Complete set {setIndex + 1}</button>
           </div>
         )}
+      </section>
+    </main>
+  );
+}
+
+function MobilePlan({ state, target, currentWeekLogs, activeSession, onOpenProfile, onStartWorkout }) {
+  const [expandedExercise, setExpandedExercise] = useState(null);
+  const [exerciseList, setExerciseList] = useState(() => EXERCISES.slice(0, 8));
+  const completedExercises = new Set(currentWeekLogs.flatMap((entry) => entry.exercises || []));
+  const completedCount = exerciseList.filter((item) => completedExercises.has(EXERCISES.indexOf(item))).length;
+  const swapExercise = (index) => {
+    const replacement = EXERCISES.find((item) => !exerciseList.some((current) => current.id === item.id));
+    if (!replacement) return;
+    setExerciseList((items) => items.map((item, itemIndex) => itemIndex === index ? replacement : item));
+  };
+  const removeExercise = (index) => setExerciseList((items) => items.filter((_, itemIndex) => itemIndex !== index));
+  const addExercise = () => {
+    const replacement = EXERCISES.find((item) => !exerciseList.some((current) => current.id === item.id));
+    if (replacement) setExerciseList((items) => [...items, replacement]);
+  };
+  const moveExercise = (index, direction) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= exerciseList.length) return;
+    setExerciseList((items) => {
+      const next = [...items];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  };
+
+  return (
+    <main className="app-shell mobile-plan-shell">
+      <header className="page-head mobile-home-header"><div><span className="muted">Your weekly routine</span><h1>Plan</h1></div><ProfileTrigger profile={state.profile} onOpen={onOpenProfile} /></header>
+      <section className="mobile-plan-summary card">
+        <div className="mobile-plan-summary-head"><div><span className="muted">This week's workout</span><h2>Session {activeSession + 1}</h2></div><span className="chip">{currentWeekLogs.length}/{target} complete</span></div>
+        <div className="mobile-plan-progress" role="progressbar" aria-label="Workout plan progress" aria-valuemin="0" aria-valuemax={exerciseList.length} aria-valuenow={completedCount}><span style={{ width: `${exerciseList.length ? (completedCount / exerciseList.length) * 100 : 0}%` }} /></div>
+        <div className="mobile-plan-progress-label"><span>{completedCount} of {exerciseList.length} exercises complete</span><span>About {Math.max(10, exerciseList.length * 5)} min</span></div>
+        <button type="button" className="primary full" onClick={onStartWorkout}>{state.start ? "Continue workout" : "Start workout"}</button>
+      </section>
+      <section className="mobile-plan-exercises card">
+        <div className="mobile-section-heading"><div><h2>Exercises</h2><span>Tap an exercise for details</span></div><button type="button" className="mobile-manage-button" onClick={addExercise}>Add <Icon name="plus" size={15} /></button></div>
+        <div className="mobile-plan-exercise-list">
+          {exerciseList.map((exercise, index) => {
+            const originalIndex = EXERCISES.indexOf(exercise);
+            const complete = completedExercises.has(originalIndex);
+            const open = expandedExercise === exercise.id;
+            return <article className={`mobile-plan-exercise ${complete ? "completed" : ""}`} key={exercise.id}>
+              <button type="button" className="mobile-plan-exercise-trigger" aria-expanded={open} onClick={() => setExpandedExercise(open ? null : exercise.id)}>
+                <span className="mobile-plan-exercise-index">{complete ? <Icon name="check" size={14} /> : index + 1}</span>
+                <span><strong>{exercise.name}</strong><small>3 × {exercise.target} reps · Rest 1:30</small></span>
+                <Icon name="down" size={17} />
+              </button>
+              {open && <div className="mobile-plan-exercise-details"><p>{exercise.description}</p><div className="mobile-plan-muscles">{exercise.muscles.map((muscle) => <span key={muscle}>{muscle}</span>)}</div><div className="mobile-plan-actions"><button type="button" onClick={() => swapExercise(index)}>Swap</button><button type="button" onClick={() => moveExercise(index, -1)} disabled={index === 0}>Move up</button><button type="button" onClick={() => moveExercise(index, 1)} disabled={index === exerciseList.length - 1}>Move down</button><button type="button" onClick={() => removeExercise(index)}>Remove</button></div></div>}
+            </article>;
+          })}
+        </div>
       </section>
     </main>
   );
@@ -602,17 +387,17 @@ function MobileProfileDialog({ open, profile, onClose, onEdit, onLogout }) {
     return () => {
       if (dialog?.open) dialog.close();
     };
-  }, [open]);
+  }, [open, confirmingLogout]);
 
   if (!open) return null;
 
   if (confirmingLogout) {
     return (
-      <dialog className="mobile-profile-dialog" ref={dialogRef} aria-labelledby="logout-title"
+      <dialog className="mobile-profile-dialog mobile-logout-dialog" ref={dialogRef} aria-labelledby="logout-title"
         onCancel={(event) => { event.preventDefault(); closeDialog(); }}
         onClick={(event) => { if (event.target === event.currentTarget) closeDialog(); }}>
         <div className="mobile-profile-card mobile-logout-confirm">
-          <span className="mobile-dialog-mark"><Icon name="user" size={20} /></span>
+          <span className="mobile-dialog-mark mobile-dialog-mark-danger" aria-hidden="true">!</span>
           <h2 id="logout-title">Delete your data?</h2>
           <p>Logging out will permanently delete your profile, workouts, and progress stored on this device. This cannot be undone.</p>
           <button type="button" className="secondary full" onClick={() => setConfirmingLogout(false)}>Keep my data</button>
@@ -636,6 +421,7 @@ function MobileProfileDialog({ open, profile, onClose, onEdit, onLogout }) {
       onCancel={(event) => { event.preventDefault(); closeDialog(); }}
       onClick={(event) => { if (event.target === event.currentTarget) closeDialog(); }}>
       <div className="mobile-profile-card">
+        <span className="mobile-sheet-handle" aria-hidden="true" />
         <div className="mobile-profile-heading">
           <span className="mobile-dialog-mark"><Icon name="user" size={20} /></span>
           <div><span>Your account</span><h2 id="profile-title">Profile</h2></div>
@@ -651,10 +437,66 @@ function MobileProfileDialog({ open, profile, onClose, onEdit, onLogout }) {
   );
 }
 
+function MobileProfileEdit({ profile, onBack, onSave }) {
+  const [draft, setDraft] = useState({
+    name: profile?.name || "",
+    age: profile?.age || "",
+    height: profile?.height || "",
+    weight: profile?.weight || "",
+    goalW: profile?.goalW || "",
+    frequency: profile?.frequency || 3,
+    gender: profile?.gender || "male",
+    objective: profile?.objective || "muscle",
+  });
+
+  const update = (key) => (event) => setDraft((value) => ({ ...value, [key]: event.target.value }));
+  const save = (event) => {
+    event.preventDefault();
+    if (!draft.name.trim()) return;
+    onSave({
+      ...profile,
+      name: draft.name.trim().split(/\s+/).filter(Boolean).map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`).join(" "),
+      age: Number(draft.age),
+      height: Number(draft.height),
+      weight: Number(draft.weight),
+      goalW: Number(draft.goalW),
+      frequency: Number(draft.frequency),
+      gender: draft.gender,
+      objective: draft.objective,
+    });
+  };
+
+  return (
+    <main className="mobile-profile-edit-shell">
+      <header className="mobile-flow-header">
+        <button type="button" className="mobile-back-button" aria-label="Back to profile" onClick={onBack}><Icon name="left" size={22} /></button>
+        <div><span>Your account</span><h1>Edit profile</h1></div>
+      </header>
+      <form className="mobile-profile-edit-form" onSubmit={save}>
+        <p className="mobile-flow-copy">Update your details in one place.</p>
+        <label><span>Name</span><input value={draft.name} onChange={update("name")} autoComplete="name" required /></label>
+        <div className="mobile-profile-edit-grid">
+          <label><span>Age</span><input type="number" min="10" max="90" value={draft.age} onChange={update("age")} /></label>
+          <label><span>Height (cm)</span><input type="number" min="120" max="220" value={draft.height} onChange={update("height")} /></label>
+          <label><span>Weight (kg)</span><input type="number" min="25" max="250" value={draft.weight} onChange={update("weight")} /></label>
+          <label><span>Goal weight (kg)</span><input type="number" min="25" max="250" value={draft.goalW} onChange={update("goalW")} /></label>
+        </div>
+        <label><span>Training days per week</span><select value={draft.frequency} onChange={update("frequency")}>{[3, 4, 5, 6].map((value) => <option key={value} value={value}>{value} days</option>)}</select></label>
+        <label><span>Goal</span><select value={draft.objective} onChange={update("objective")}><option value="muscle">Build muscle</option><option value="fat-loss">Burn fat</option><option value="strength">Get stronger</option><option value="fitness">Improve fitness</option></select></label>
+        <div className="mobile-profile-edit-actions"><button type="button" className="secondary full" onClick={onBack}>Cancel</button><button type="submit" className="primary full">Save changes</button></div>
+      </form>
+    </main>
+  );
+}
+
 export default function App() {
   const [state, setState] = useState(loadState);
+  const [booting, setBooting] = useState(() => !hasCachedCriticalAssets());
+  const [bootProgress, setBootProgress] = useState(0);
+  const [bootStatus, setBootStatus] = useState("Preparing your experience");
+  const [planGenerating, setPlanGenerating] = useState(false);
   const [resolvedTheme, setResolvedTheme] = useState("dark");
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 760px)").matches);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 755px)").matches);
   const [setupOpen, setSetupOpen] = useState(() => Boolean(state.profile && !String(state.profile.name || "").trim()));
   const [tab, setTab] = useState("today");
   const [workout, setWorkout] = useState(null);
@@ -667,6 +509,8 @@ export default function App() {
   const [mobileTimerRunning, setMobileTimerRunning] = useState(false);
   const [mobileElapsedSeconds, setMobileElapsedSeconds] = useState(0);
   const [mobileProfileOpen, setMobileProfileOpen] = useState(false);
+  const [mobileProfileEditOpen, setMobileProfileEditOpen] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
   const [warmupIndex, setWarmupIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [slow, setSlow] = useState(false);
@@ -686,9 +530,70 @@ export default function App() {
   const [autoTrack, setAutoTrack] = useState(false);
   const stageRef = useRef(null);
   const pageRef = useRef(null);
+  const mobileHistoryReady = useRef(false);
 
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 760px)");
+    let alive = true;
+    const startedAt = performance.now();
+    preloadCriticalAssets(
+      (progress) => alive && setBootProgress(progress),
+      (status) => alive && setBootStatus(status),
+    ).finally(() => {
+      const remaining = Math.max(0, 420 - (performance.now() - startedAt));
+      window.setTimeout(() => {
+        if (!alive) return;
+        setBootProgress(100);
+        setBootStatus("Almost ready");
+        setBooting(false);
+      }, remaining);
+    });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) return undefined;
+
+    const currentLocation = window.location.href;
+    if (!mobileHistoryReady.current) {
+      const baseState = { ...(window.history.state || {}), trackerApp: true, trackerRoot: true, tab: "today", mobileView: "home" };
+      window.history.replaceState(baseState, "", currentLocation);
+      window.history.pushState({ trackerApp: true, tab, mobileView }, "", currentLocation);
+      mobileHistoryReady.current = true;
+    }
+
+    const handleBack = (event) => {
+      const nextState = event.state;
+      if (!nextState?.trackerApp) {
+        window.history.pushState({ trackerApp: true, tab: "today", mobileView: "home" }, "", currentLocation);
+        setTab("today");
+        setMobileView("home");
+        setMobileProfileOpen(false);
+        return;
+      }
+      if (nextState.trackerRoot) {
+        window.history.pushState({ trackerApp: true, tab: "today", mobileView: "home" }, "", currentLocation);
+        setTab("today");
+        setMobileView("home");
+      } else {
+        setTab(nextState.tab || "today");
+        setMobileView(nextState.mobileView || "home");
+        setMobileProfileOpen(false);
+      }
+    };
+
+    window.addEventListener("popstate", handleBack);
+    return () => window.removeEventListener("popstate", handleBack);
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (!isMobile || !mobileHistoryReady.current) return;
+    const current = window.history.state;
+    if (current?.trackerApp && !current.trackerRoot && current.tab === tab && current.mobileView === mobileView) return;
+    window.history.pushState({ trackerApp: true, tab, mobileView }, "", window.location.href);
+  }, [isMobile, tab, mobileView]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 755px)");
     const applyViewport = () => setIsMobile(media.matches);
     applyViewport();
     media.addEventListener("change", applyViewport);
@@ -711,11 +616,11 @@ export default function App() {
   }, [state.theme]);
 
   useEffect(() => {
-    if (!state.profile) {
-      localStorage.removeItem(STORAGE_KEY);
-      return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, _version: STORAGE_VERSION }));
+    } catch {
+      // Storage can be unavailable in private browsing or restricted webviews.
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, _u: Date.now() }));
   }, [state]);
 
   useEffect(() => {
@@ -737,6 +642,7 @@ export default function App() {
   const planWeek = getWeekNumber(state.profile?.planStartedAt || state.log[0]?.d || Date.now());
   const weekStart = startOfWeek(new Date());
   const currentWeekLogs = state.log.filter((entry) => new Date(entry.d) >= weekStart);
+  const historyEntries = [...state.log].sort((a, b) => new Date(b.d) - new Date(a.d));
 
   const startSession = (sessionIndex) => {
     setActiveSession(sessionIndex);
@@ -825,6 +731,7 @@ export default function App() {
 
   const logout = () => {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
     setState(defaultState);
     setSetupOpen(false);
     setTab("today");
@@ -842,13 +749,17 @@ export default function App() {
     setMobileProfileOpen(true);
   };
 
-  if (!state.profile) return <ProfileSetup state={state} setState={setState} onCancel={() => setTab("today")} onComplete={() => setSetupOpen(false)} />;
+  const finishPlanGeneration = useCallback(() => setPlanGenerating(false), []);
+
+  if (booting) return <HTFPreloader progress={bootProgress} status={bootStatus} />;
+  if (!state.profile) return <ProfileSetup state={state} setState={setState} onCancel={() => setTab("today")} onComplete={() => setPlanGenerating(true)} />;
+  if (planGenerating) return <PlanGenerationScreen profile={state.profile} track={LEVEL_NAMES[state.track]} onFinished={finishPlanGeneration} />;
   if (setupOpen) return <ProfileSetup
     state={state}
     setState={setState}
-    nameOnly={Boolean(state.profile && !String(state.profile.name || "").trim())}
-    onCancel={() => setSetupOpen(false)}
-    onComplete={() => setSetupOpen(false)}
+    nameOnly={editingProfile || Boolean(state.profile && !String(state.profile.name || "").trim())}
+    onCancel={() => { setSetupOpen(false); setEditingProfile(false); }}
+    onComplete={() => { setSetupOpen(false); setEditingProfile(false); }}
   />;
 
   if (isMobile && tab === "today" && mobileView === "exercise-list") {
@@ -862,6 +773,14 @@ export default function App() {
       onBack={() => { setMobileTimerRunning(false); setMobileView("home"); setMobileBodyPart(null); }}
       onOpenExercise={openMobileExercise}
       onFinish={finishSession}
+    />;
+  }
+
+  if (isMobile && tab === "today" && mobileProfileEditOpen) {
+    return <MobileProfileEdit
+      profile={state.profile}
+      onBack={() => setMobileProfileEditOpen(false)}
+      onSave={(profile) => { setState((value) => ({ ...value, profile })); setMobileProfileEditOpen(false); }}
     />;
   }
 
@@ -896,12 +815,33 @@ export default function App() {
         onOpenBodyPart={openMobileBodyPart}
         onManagePlan={() => setTab("plan")}
       />
-      <Nav tab={tab} setTab={setTab} onOpenProfile={openProfileFromNav} profileOpen={mobileProfileOpen} />
+      <Nav tab={tab} setTab={setTab} />
       <MobileProfileDialog
         open={mobileProfileOpen}
         profile={state.profile}
         onClose={() => setMobileProfileOpen(false)}
-        onEdit={() => { setMobileProfileOpen(false); setSetupOpen(true); }}
+        onEdit={() => { setMobileProfileOpen(false); setMobileProfileEditOpen(true); }}
+        onLogout={logout}
+      />
+    </>;
+  }
+
+  if (isMobile && tab === "plan" && !mobileProfileEditOpen) {
+    return <>
+      <MobilePlan
+        state={state}
+        target={sessionTarget}
+        currentWeekLogs={currentWeekLogs}
+        activeSession={activeSession}
+        onOpenProfile={() => setMobileProfileOpen(true)}
+        onStartWorkout={() => { setTab("today"); openMobileSession(activeSession); }}
+      />
+      <Nav tab={tab} setTab={setTab} />
+      <MobileProfileDialog
+        open={mobileProfileOpen}
+        profile={state.profile}
+        onClose={() => setMobileProfileOpen(false)}
+        onEdit={() => { setMobileProfileOpen(false); setMobileProfileEditOpen(true); }}
         onLogout={logout}
       />
     </>;
@@ -1095,7 +1035,7 @@ export default function App() {
     <>
       <main className="app-shell" ref={pageRef}>
         {tab === "today" && <>
-          <header className="page-head"><div><span className="muted">{LEVEL_NAMES[state.track]} plan</span><h1>Week {planWeek}</h1></div><span className="week-target">{sessionTarget} workouts / week</span></header>
+          <header className="page-head"><div><span className="muted">{LEVEL_NAMES[state.track]} plan</span><h1>Week {planWeek}</h1></div><div className="page-head-actions"><span className="week-target">{sessionTarget} workouts / week</span><ProfileTrigger profile={state.profile} onOpen={() => setMobileProfileOpen(true)} /></div></header>
           <WeekOverview log={state.log} target={sessionTarget} weekNumber={planWeek} />
           {Array.from({ length: sessionTarget }, (_, session) => {
             const completedEntry = currentWeekLogs.find((entry) => entry.session === session);
@@ -1119,7 +1059,7 @@ export default function App() {
           })}
         </>}
         {tab === "plan" && <>
-          <h1>Plan</h1>
+          <header className="page-head"><h1>Plan</h1><ProfileTrigger profile={state.profile} onOpen={() => setMobileProfileOpen(true)} /></header>
           <section className="card"><div className="row"><h2>Your training profile</h2><button className="secondary" onClick={() => setSetupOpen(true)}>Edit</button></div>
             <div className="kpi-grid"><div><span>Age</span><b>{state.profile.age}</b></div><div><span>Weight</span><b>{state.profile.weight} kg</b></div><div><span>Goal</span><b>{state.profile.goalW} kg</b></div></div>
           </section>
@@ -1132,23 +1072,29 @@ export default function App() {
                 </button>)}
             </div>
           </section>
-          <section className="card"><h2>Exercises</h2>{EXERCISES.map((item) => <div className="exercise-row" key={item.name}><div><b>{item.name}</b><span>{item.variation}</span></div><strong>3 × {item.target}</strong></div>)}</section>
+          <section className="card"><h2>Exercises</h2>{EXERCISES.map((item) => <div className="exercise-row" key={item.name}><div><b>{item.name}</b><span>{item.variation}</span></div><strong>3 — {item.target}</strong></div>)}</section>
         </>}
         {tab === "progress" && <>
-          <h1>Progress</h1>
+          <header className="page-head"><h1>Progress</h1><ProfileTrigger profile={state.profile} onOpen={() => setMobileProfileOpen(true)} /></header>
           <section className="card"><div className="kpi-grid"><div><span>This week</span><b>{currentWeekLogs.length}/{sessionTarget}</b></div><div><span>Workouts</span><b>{state.log.length}</b></div><div><span>Sets logged</span><b>{state.log.reduce((total, entry) => total + (entry.sets || 0), 0)}</b></div></div></section>
-          <ProgressCharts log={state.log} />
-          <section className="card"><h2>Training history</h2>{state.log.length ? state.log.slice(-8).reverse().map((entry, index) => <div className="exercise-row" key={`${entry.d}-${index}`}><b>{new Date(entry.d).toLocaleDateString()}</b><span>{entry.reps} reps · {entry.sets || 0} sets</span></div>) : <p className="muted">No sessions completed yet.</p>}</section>
+          <ProgressCharts log={state.log} startedAt={state.profile?.planStartedAt || state.log[0]?.d} onStartWorkout={() => setTab("today")} />
+          <section className="card"><h2>Training history</h2>{historyEntries.length ? historyEntries.slice(0, 8).map((entry) => <div className="exercise-row training-history-row" key={entry.d}><div><b>{new Date(entry.d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</b><span>Session {(entry.session ?? 0) + 1} · {entry.exercises?.length || 0} exercises</span></div><strong>{entry.dur ? formatElapsedTime(Math.round(entry.dur / 1000)) : "—"}</strong></div>) : <p className="muted">Complete a workout to build your history.</p>}</section>
         </>}
       </main>
-      <Nav tab={tab} setTab={setTab} onOpenProfile={openProfileFromNav} profileOpen={mobileProfileOpen} />
+      <Nav tab={tab} setTab={setTab} />
       <MobileProfileDialog
         open={mobileProfileOpen}
         profile={state.profile}
         onClose={() => setMobileProfileOpen(false)}
-        onEdit={() => { setMobileProfileOpen(false); setSetupOpen(true); }}
+        onEdit={() => { setMobileProfileOpen(false); setMobileProfileEditOpen(true); }}
         onLogout={logout}
       />
     </>
   );
 }
+
+
+
+
+
+
